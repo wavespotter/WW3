@@ -3,8 +3,8 @@
 # SOFAR Make Script
 #
 
-cp comp_Sofar comp
-cp link_Sofar link
+cp comp.Sofar comp
+cp link.Sofar link
 
 # --------------------------------------------------------------------------- #
 # 3. Compile non-MPI codes                                                    #
