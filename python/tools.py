@@ -16,11 +16,19 @@ ww3_executables = { 'ser':( 'ww3_grid',
                             'ww3_outp',
                             'ww3_prep',
                             'ww3_strt',
-			    'ww3_uprstr'),
+			                'ww3_uprstr'),
                    'mpi':( 'ww3_sbs1',
                            'ww3_multi',
-                           'ww3_shel')
+                           'ww3_shel'),
+                   'openmp': ('ww3_sbs1',
+                            'ww3_multi',
+                            'ww3_shel'),
+                   'ww3ser':
+                            ('ww3_sbs1',
+                            'ww3_multi',
+                            'ww3_shel'),
                     }
+
 
 #
 # AWS
@@ -41,7 +49,7 @@ def clean( paths = None , clean_executable= True):
         paths = ww3_paths
 
     # Temporary directories generated during complilation
-    temporary_directories = ['mod','mod_MPI','mod_SEQ','obj','obj_MPI','obj_SEQ','tmp']
+    temporary_directories = ['mod','mod_MPI','mod_SEQ','mod_OMP','obj_OMP','obj','obj_MPI','obj_SEQ','tmp']
     #
     for directory in temporary_directories:
         #
@@ -73,7 +81,7 @@ def clean( paths = None , clean_executable= True):
     #
 #
 
-def make( kind , logger ):
+def make( kind , logger, debug):
     #
     import os
     import shutil
@@ -81,10 +89,18 @@ def make( kind , logger ):
     global  ww3_paths
     global ww3_executables
 
+    print(kind, debug)
     # Copy sofar specific COMP and LINK files
-    shutil.copyfile(  os.path.join(ww3_paths['bin'],'comp.Sofar') ,
+    if debug:
+        comp_source_file = 'comp.Sofar.debug'
+        link_source_file = 'link.Sofar.debug'
+    else:
+        comp_source_file = 'comp.Sofar'
+        link_source_file = 'link.Sofar'
+
+    shutil.copyfile(  os.path.join(ww3_paths['bin'],comp_source_file) ,
                       os.path.join(ww3_paths['bin'],'comp'      )  )
-    shutil.copyfile(  os.path.join(ww3_paths['bin'],'link.Sofar') ,
+    shutil.copyfile(  os.path.join(ww3_paths['bin'],link_source_file) ,
                       os.path.join(ww3_paths['bin'],'link'      )  )
 
     # Copy appropriate SWITCH file depending on if we are using mpi or ser
@@ -92,9 +108,11 @@ def make( kind , logger ):
     if kind.lower() == 'mpi':
         #
         source_file  = os.path.join(ww3_paths['bin'],'switch_Sofar_MPI')
-
+    elif kind.lower() == 'openmp':
+            #
+            source_file = os.path.join(ww3_paths['bin'], 'switch_Sofar_OPENMP')
         #
-    elif kind.lower() == 'ser':
+    elif kind.lower() == 'ser' or kind.lower() == 'ww3ser':
         #
         source_file = os.path.join(ww3_paths['bin'], 'switch_Sofar')
 
@@ -136,6 +154,25 @@ def make( kind , logger ):
     return success
     #
 #
+
+
+def copy_locally(target_path):
+    import os
+    import shutil
+
+    for kind in ww3_executables:
+        #
+        for executable in ww3_executables[kind]:
+            #
+            source = os.path.join( ww3_paths['exe'] ,  executable )
+            target = os.path.join( target_path ,  executable)
+
+            if os.path.isfile(target):
+                os.remove(target)
+            shutil.copyfile( source, target )
+            #
+        #
+    #
 
 def copy_to_aws( compilation_platform = None ):
     #
