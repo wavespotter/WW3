@@ -25,8 +25,8 @@ ww3_executables = { 'ser':( 'ww3_grid',
 #
 # AWS
 #
-aws_bucket_name = 'spoondrift-data-2019'
-aws_prefix      = 'ww3_executables'
+aws_bucket_name = 'sofar-ww3-model'
+aws_prefix      = 'worker/staging/ww3_executables'
 
 
 #
