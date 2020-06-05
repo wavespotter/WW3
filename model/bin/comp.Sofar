@@ -82,7 +82,7 @@
 #     -Jdir or -Mdir : where to put .mod files
 
   # compilation options
-  opt="-c -O3 -fno-second-underscore -ffree-line-length-none -fconvert=native -J$path_m"
+  opt="-c -O3 -march=native -ffast-math -funroll-loops -fno-second-underscore -ffree-line-length-none -fconvert=native -J$path_m"
 # opt="$opt -I$HOME/g2lib -I/opt/local/include"
 
   # mpi implementation
