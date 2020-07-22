@@ -17,16 +17,9 @@ ww3_executables = { 'ser':( 'ww3_grid',
                             'ww3_prep',
                             'ww3_strt',
 			                'ww3_uprstr'),
-                   'mpi':( 'ww3_sbs1',
+                   'multi':( 'ww3_sbs1',
                            'ww3_multi',
-                           'ww3_shel'),
-                   'openmp': ('ww3_sbs1',
-                            'ww3_multi',
-                            'ww3_shel'),
-                   'ww3ser':
-                            ('ww3_sbs1',
-                            'ww3_multi',
-                            'ww3_shel'),
+                           'ww3_shel')
                     }
 
 
@@ -89,7 +82,12 @@ def make( kind , logger, debug):
     global  ww3_paths
     global ww3_executables
 
-    print(kind, debug)
+    if kind == 'ser':
+        executables = 'ser'
+    else:
+        executables = 'multi'
+
+    print(f'Compiling for {kind}, debug: {debug}')
     # Copy sofar specific COMP and LINK files
     if debug:
         comp_source_file = 'comp.Sofar.debug'
@@ -117,7 +115,7 @@ def make( kind , logger, debug):
         source_file = os.path.join(ww3_paths['bin'], 'switch_Sofar')
 
     make_targets = ''
-    for executable in ww3_executables[kind.lower()]:
+    for executable in ww3_executables[executables.lower()]:
         #
         make_targets = make_targets + ' ' + executable
         #
@@ -141,7 +139,7 @@ def make( kind , logger, debug):
 
     # Check if we succeeded:
     success = True
-    for executable in ww3_executables[kind.lower()]:
+    for executable in ww3_executables[executables.lower()]:
         #
         abs_path = os.path.join(ww3_paths['exe'] , executable)
         #
@@ -174,7 +172,7 @@ def copy_locally(target_path):
         #
     #
 
-def copy_to_aws( compilation_platform = None ):
+def copy_to_aws( comp_kind ,compilation_platform = None, debug=False ):
     #
     import boto3
     import os
@@ -199,7 +197,14 @@ def copy_to_aws( compilation_platform = None ):
         for executable in ww3_executables[kind]:
             #
             source = os.path.join( ww3_paths['exe'] ,  executable )
-            target = aws_prefix + '/' + compilation_platform + '/' + executable
+
+            if debug:
+                debug_str = 'debug/'
+            else:
+                debug_str = ''
+
+            target = aws_prefix + '/' + compilation_platform + '/' + comp_kind + \
+                     '/' + debug_str + executable
             bucket.upload_file( source , target )
             #
         #

@@ -85,15 +85,13 @@
   # linking options
   libs=""
 # libs="-L/opt/local/lib -L$HOME/g2lib -lg2 -lw3 -lpng -ljasper"
-
+  opt="-rdynamic -o $prog"
 
   # mpi implementation
   if [ "$mpi_mod" = 'yes' ]
   then
-    opt="-o -static $prog"
-    comp=mpif90
+    comp=mpifort
   else
-    opt="-o $prog"
     comp=gfortran
   fi
 
