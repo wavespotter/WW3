@@ -18,7 +18,8 @@ RUN rm -rf /WW3/manual /WW3/regtests /WW3/smc_docs
 WORKDIR /WW3
 
 RUN yes n | ./model/bin/w3_setup model
-RUN cd ./model/bin/ && ./make_Sofar
+# you need to run make_Sofar twice to get the preprocessing tools to build
+RUN cd ./model/bin/ && ./make_Sofar && ./make_Sofar
 
 RUN apt-get -yq remove build-essential curl
 
