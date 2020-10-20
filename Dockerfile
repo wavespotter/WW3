@@ -11,8 +11,7 @@ RUN apt-get -yq install build-essential gfortran mpich curl
 # download tarball of sofarmaster branch &
 # rename the directory to WW3 for ease of use
 # then clear out some unused documentation files
-RUN curl -L https://github.com/wavespotter/WW3/archive/sofarmaster.tar.gz | tar zx 
-RUN mv /WW3-sofarmaster /WW3
+COPY . /WW3
 RUN rm -rf /WW3/manual /WW3/regtests /WW3/smc_docs
 
 WORKDIR /WW3
