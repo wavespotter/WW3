@@ -11,7 +11,7 @@ cp link.Sofar link
 # --------------------------------------------------------------------------- #
 
   cp switch_Sofar switch
-  ./w3_make ww3_grid ww3_strt ww3_prep ww3_outf ww3_outp
+  ./w3_make ww3_grid ww3_strt ww3_prep ww3_outf ww3_outp ww3_ounf ww3_ounp
 
 # --------------------------------------------------------------------------- #
 # 3. Compile MPI codes                                                        #
