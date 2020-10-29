@@ -13,7 +13,7 @@ cp link.Sofar link
   cp switch_Sofar switch
   ./w3_make ww3_grid ww3_strt ww3_prep ww3_outf ww3_outp
 
-  if [[ $WWATCH3_NETCDF -eq 'NC4' ]]
+  if [[ $WWATCH3_NETCDF == 'NC4' ]]
   then
     ./w3_make ww3_ounf ww3_ounp
   fi
