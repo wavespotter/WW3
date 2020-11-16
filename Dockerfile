@@ -1,14 +1,12 @@
 # ---------------------------------------------------- #
 # This image compiles a version of the Wave Watch III
-# model optimized for the Sofar use cases and intended 
-# for benchmarking and other lightweight applications.
+# model optimized for the Sofar use cases. It's compiled
+# with NetCDF 4 support.
 
 FROM ubuntu:18.04 AS stage1
 
-
-
 RUN apt-get update
-RUN apt-get -yq install build-essential gcc gfortran mpich curl libnetcdf-dev libnetcdff-dev aws-cli
+RUN DEBIAN_FRONTEND="noninteractive" TZ="Etc/UTC" apt-get -yq install build-essential gcc gfortran mpich curl libnetcdf-dev libnetcdff-dev awscli
 
 # set environmental variables
 # for netcdf4
