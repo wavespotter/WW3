@@ -8,7 +8,7 @@ FROM ubuntu:18.04 AS stage1
 
 
 RUN apt-get update
-RUN apt-get -yq install build-essential gcc gfortran mpich curl libnetcdf-dev libnetcdff-dev
+RUN apt-get -yq install build-essential gcc gfortran mpich curl libnetcdf-dev libnetcdff-dev aws-cli
 
 # set environmental variables
 # for netcdf4
