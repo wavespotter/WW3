@@ -6,7 +6,7 @@
 FROM ubuntu:18.04 AS stage1
 
 RUN apt-get update
-RUN apt-get -yq install build-essential gcc gfortran mpich curl libnetcdf-dev libnetcdff-dev
+RUN apt-get -yq install build-essential gcc gfortran mpich curl libnetcdf-dev libnetcdff-dev nco
 
 # set environmental variables
 # for netcdf4
@@ -33,5 +33,5 @@ COPY --from=stage1 /WW3 /WW3
 COPY --from=stage1 /usr/lib/* /usr/lib/
 COPY --from=stage1 /lib/* /lib/
 COPY --from=stage1 /lib64/* /lib64/
-COPY --from=stage1 /usr/bin/mpiexec /usr/bin/hydra_pmi_proxy /usr/bin/
+COPY --from=stage1 /usr/bin/mpiexec /usr/bin/hydra_pmi_proxy /usr/bin/ncrcat /usr/bin/
 RUN apt-get update && DEBIAN_FRONTEND="noninteractive" TZ="Etc/UTC"  apt-get -yq install awscli && rm -rf /var/lib/apt/lists/*
