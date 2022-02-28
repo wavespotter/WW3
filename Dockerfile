@@ -7,7 +7,9 @@ FROM ubuntu:20.04 AS stage1
 
 RUN apt-get update
 RUN DEBIAN_FRONTEND="noninteractive" TZ="Etc/UTC"  apt-get -y install tzdata
-RUN apt-get -yq install build-essential gcc gfortran openmpi-bin libopenmpi-dev curl libnetcdf-dev libnetcdff-dev nco
+#RUN apt-get -yq install build-essential gcc gfortran mpich curl libnetcdf-dev libnetcdff-dev nco
+#RUN apt-get -yq install build-essential gcc gfortran openmpi-bin libopenmpi-dev curl libnetcdf-dev libnetcdff-dev nco
+RUN apt-get -yq install build-essential gcc gfortran libomp-dev curl libnetcdf-dev libnetcdff-dev nco
 
 # set environmental variables
 # for netcdf4
@@ -29,10 +31,11 @@ RUN cd ./model/bin/ && ./make_Sofar && ./make_Sofar
 RUN apt-get -yq remove build-essential curl
 
 # Stage 2
-FROM ubuntu:20.04
-COPY --from=stage1 /WW3 /WW3
-COPY --from=stage1 /usr/lib/* /usr/lib/
-COPY --from=stage1 /lib/* /lib/
-COPY --from=stage1 /lib64/* /lib64/
-COPY --from=stage1 /usr/bin/mpiexec /usr/bin/hydra_pmi_proxy /usr/bin/ncrcat /usr/bin/
+#FROM ubuntu:20.04
+#COPY --from=stage1 /WW3 /WW3
+#COPY --from=stage1 /usr/lib/* /usr/lib/
+#COPY --from=stage1 /lib/* /lib/
+#COPY --from=stage1 /lib64/* /lib64/
+##COPY --from=stage1 /usr/bin/mpiexec /usr/bin/hydra_pmi_proxy /usr/bin/ncrcat /usr/bin/
+#COPY --from=stage1 /usr/bin/mpirun /usr/bin/hydra_pmi_proxy /usr/bin/ncrcat /usr/bin/
 RUN apt-get update && DEBIAN_FRONTEND="noninteractive" TZ="Etc/UTC"  apt-get -yq install awscli && rm -rf /var/lib/apt/lists/*

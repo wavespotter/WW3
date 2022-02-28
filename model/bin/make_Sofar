@@ -22,6 +22,7 @@ cp link.Sofar link
 # 3. Compile MPI codes                                                        #
 # --------------------------------------------------------------------------- #
 
-  cp switch_Sofar_MPI switch
+#  cp switch_Sofar_MPI switch
+  cp switch_Sofar_OPENMP switch
   ./w3_make ww3_shel ww3_multi ww3_sbs1
   
