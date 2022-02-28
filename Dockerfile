@@ -3,10 +3,11 @@
 # model optimized for the Sofar use cases. It's compiled
 # with NetCDF 4 support.
 
-FROM ubuntu:18.04 AS stage1
+FROM ubuntu:20.04 AS stage1
 
 RUN apt-get update
-RUN apt-get -yq install build-essential gcc gfortran mpich curl libnetcdf-dev libnetcdff-dev nco
+RUN DEBIAN_FRONTEND="noninteractive" TZ="Etc/UTC"  apt-get -y install tzdata
+RUN apt-get -yq install build-essential gcc gfortran openmpi-bin libopenmpi-dev curl libnetcdf-dev libnetcdff-dev nco
 
 # set environmental variables
 # for netcdf4
@@ -28,7 +29,7 @@ RUN cd ./model/bin/ && ./make_Sofar && ./make_Sofar
 RUN apt-get -yq remove build-essential curl
 
 # Stage 2
-FROM ubuntu:18.04
+FROM ubuntu:20.04
 COPY --from=stage1 /WW3 /WW3
 COPY --from=stage1 /usr/lib/* /usr/lib/
 COPY --from=stage1 /lib/* /lib/
