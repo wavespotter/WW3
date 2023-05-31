@@ -46,8 +46,9 @@ $                              3 : Transfer file.
 $                              4 : Spectral partitioning.
 $          - Scaling factors for 1-D and 2-D spectra Negative factor
 $            disables, output, factor = 0. gives normalized spectrum.
+$          - Netcdf variable type [2=SHORT, 3=it depends, 4=REAL]
 $
-$ 3  1  0
+$ 3  1  0  4
 $
 $ The transfer file contains records with the following contents.
 $
@@ -58,7 +59,7 @@ $ - Bin directions in radians for all bins (Oceanographic conv.).
 $                                                         -+
 $ - Time in yyyymmdd hhmmss format                         | loop
 $                                             -+           |
-$ - Point name (C*10), lat, lon, d, U10 and    |  loop     | over
+$ - Point name (C*40), lat, lon, d, U10 and    |  loop     | over
 $   direction, current speed and direction     |   over    |
 $ - E(f,theta)                                 |  points   | times
 $                                             -+          -+
@@ -102,7 +103,7 @@ $ - Bin directions in radians for all bins (Oceanographic conv.).
 $                                                         -+
 $ - Time in yyyymmdd hhmmss format                         | loop
 $                                             -+           |
-$ - Point name (C*10), depth, wind speed and   |  loop     | over
+$ - Point name (C*40), depth, wind speed and   |  loop     | over
 $   direction, current speed and direction     |   over    |
 $ - E(f,theta) if requested                    |  points   | times
 $ - Sin(f,theta) if requested                  |           |

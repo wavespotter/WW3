@@ -40,7 +40,7 @@ as for all the WAVEWATCH III programs. In summary:
 \begin{enumerate}
    \item \textbf{Download the source code} \newline
    The \textbf{ww3\_uprstr} source code is included to the official WAVEWATCH III
-   release, starting with the version x.xx.
+   release, starting with the version 6.07.
    \item \textbf{Compile the code} \newline
    The \textbf{ww3\_uprstr} is compiled the same way as all the auxiliary programs 
    of WAVEWATCH III, see the appropriate section of the manual. For debugging outputs, 
@@ -61,7 +61,7 @@ as for all the WAVEWATCH III programs. In summary:
          The users have to define i. the date of the assimilation, ii. the method of energy
          redistribution and iii. depending on the method: a percentage or an inputfile.
          \item \textbf{Input file of analysis.} The file can have any name, but the suffix 
-         defines the reader used for importing the data. Currently, the reader supports only
+         defines the reader used for importing the data. For the majority of options, the reader supports only
          \textbf{grbtxt} format. This is a text file created with wgrib2 from the grib2 file 
          of the analysis and it has the following structure:\newline
 
@@ -124,12 +124,12 @@ restart file. Additional methods can be implemented by adding UPD options to the
 
 The following UPD options are available:
 \begin{enumerate} 
-   \item UPD0C:: \textbf{ELIMINATED from version x.xx} Option 0C  All the spectra are 
+   \item UPD0C:: \textbf{ELIMINATED from version 5.16} Option 0C  All the spectra are 
    updated with a constant: \newline
       \(fac=(SWH\_Bckg-SWH\_Anl)/SWH\_Anl \).
    \item UPD0F:: Option 0F  All the spectra are updated with a constant: \newline 
       \(fac=SWH\_Anl/SWH\_Bckg \).
-   \item UPD1 ::  \textbf{ELIMINATED from version x.xx} Option 1  The fac(x,y,frq,theta), 
+   \item UPD1 ::  \textbf{ELIMINATED from version 5.16} Option 1  The fac(x,y,frq,theta), 
    is weighted according to the \% of energy at each spectral bin; fac the same as UPDOF.
    \item UPD2 :: Option 2   The fac(x,y,frq,theta), is calculated at each grid point 
    according to SWH\_Bckg and SWH\_Anl
@@ -140,10 +140,21 @@ The following UPD options are available:
    which are applied on the background spectrum. The algorithm requires the mapping 
    of each partition on the individual spectra; the map is used to determine the weighting 
    surfaces.
+   \item UPD5 :: Option 5   Corrections are calculated as per UPD2 but are
+   applied to wind-sea parts of the spectrum only when wind-sea
+   is the dominant component, otherwise the whole spectrum is
+   corrected. Required inputs are the the Analysis Hs field plus 
+   background wind speed and direction. To include the wind data it is recommended
+   to run code built with the WRST switch.
+   \item UPD6 :: Option 6   Corrections are calculated as per UPD5 but wind-sea
+   components are also shifted in frequency space using Toba (1973).
+   Required inputs are the the Analysis Hs field plus background wind speed and direction.
+   To include the wind data it is recommended to run code built with the WRST switch.
 \end{enumerate}
 
-Any additional method for the redistribution of the energy to the WS could be added 
-by extending the input file and adding the source code to the \textbf{ww3\_uprstr.ftn}.
+Any additional method for the redistribution of the energy to the WS and correcting 
+the associated winds could be added by further extending the input file and adding 
+the source code to the \textbf{ww3\_uprstr.ftn}.
 
 \subparagraph{Example \newline}
 In this section, an example of the simplest WDA application is discussed.

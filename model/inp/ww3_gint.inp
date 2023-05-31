@@ -1,14 +1,17 @@
 $ -------------------------------------------------------------------- $
 $ WAVEWATCH III Grid integration input file                            $
 $ -------------------------------------------------------------------- $
-$ Time, time increment and number of outputs
+$ Time, time increment and number of outputs, and optional T/F 
+$ option (default is T) to indicate out_grd (T) or restart (F)
+$ This option for example allows you to create a regional grid from global
+$ Note, there is no interpolation in spectral space only geographic
 $
-  19680606 060000 10800. 1
+  19680606 060000 10800. 1 T
 $
-$ Total number of grids (NGR). The code assumes that the first NGR-1  
-$ grids are the input grids and the last grid is the target grid in 
+$ Total number of grids (NGR). The code assumes that the first NGR-1
+$ grids are the input grids and the last grid is the target grid in
 $ which the output fields are to be interpolated. It also assumes
-$ that all the grids have the same output fields switched on 
+$ that all the grids have the same output fields switched on
 $
 $ NGR
 $
@@ -28,9 +31,12 @@ $ Upon execution of the code an out_grd.grd4 is generated via
 $ interpolation of output fields from the various out_grd.grdN
 $ (N varying from 1 to 3) files.
 $
-$ Choice of no extrapolation [0] or to extrapolate [1] with wet points [2]
+$ Interpolation scheme
+$   0: Linear (all grid types)
+$   1: Linear with extrapolation of wetnodes (unstructured)
+$   2: Nearest (curvilinear and rectangular)
  0
 $
 $ -------------------------------------------------------------------- $
 $ End of input file                                                    $
-$ -------------------------------------------------------------------- $ 
+$ -------------------------------------------------------------------- $

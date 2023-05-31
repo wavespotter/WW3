@@ -92,12 +92,12 @@
     exit 1
   fi
 
-  # ftn dir
-  makefile=$main_dir/ftn/makefile
-  if [ ! -d $main_dir/ftn ]
+  # src dir
+  makefile=$main_dir/src/makefile
+  if [ ! -d $main_dir/src ]
   then
     echo ' '
-    echo "[ERROR] Directory $main_dir/ftn not found"
+    echo "[ERROR] Directory $main_dir/src not found"
     echo '        Please check the content of your directory model'
     exit 1
   fi
@@ -118,10 +118,8 @@
 
 # 1.e Set regular and netCDF progs - - - - - - - - - - - - - - - - - - - - - -
 
-
-# GRID STRT BOUND OUTF OUTP TRCK GRIB GINT GX* UPRSTR LIBWW3
-  reg_programs="ww3_grid"
-  reg_programs="$reg_programs ww3_strt"
+  #STRT BOUND OUTF OUTP TRCK GRIB GINT GX* UPRSTR
+  reg_programs="ww3_strt"
   reg_programs="$reg_programs ww3_bound"
   reg_programs="$reg_programs ww3_outf"
   reg_programs="$reg_programs ww3_outp"
@@ -131,15 +129,13 @@
   reg_programs="$reg_programs gx_outf"
   reg_programs="$reg_programs gx_outp"
   reg_programs="$reg_programs ww3_uprstr"
-  reg_programs="$reg_programs libww3"
 
-# PRNC OUNF OUNP BOUNC TRNC
+  # PRNC OUNF OUNP BOUNC TRNC
   cdf_programs="ww3_prnc"
   cdf_programs="$cdf_programs ww3_ounf"
   cdf_programs="$cdf_programs ww3_ounp"
   cdf_programs="$cdf_programs ww3_bounc"
   cdf_programs="$cdf_programs ww3_trnc"
-
 
   # PRTIDE
   if [ -n "`grep TIDE $switch_file`" ]
@@ -147,18 +143,22 @@
     cdf_programs="$cdf_programs ww3_prtide"
   fi
 
-  # MULTI MULTI_ESMF SBS1
-  if [ -n "`grep SCRIPNC $switch_file`" ] || [ -n "`grep OASIS $switch_file`" ]
+ # MULTI MULTI_ESMF SBS1 LIBWW3
+  if [ -n "`grep SCRIPNC $switch_file`" ] || [ -n "`grep OASIS $switch_file`" ]  || [ -n "`grep PDLIB $switch_file`" ]
   then
+    cdf_programs="$cdf_programs ww3_grid"
     cdf_programs="$cdf_programs ww3_multi"
     cdf_programs="$cdf_programs ww3_sbs1"
+    cdf_programs="$cdf_programs libww3"
     if [ $ESMFMKFILE ]
     then
       cdf_programs="$cdf_programs ww3_multi_esmf"
     fi
   else
+    reg_programs="$reg_programs ww3_grid"
     reg_programs="$reg_programs ww3_multi"
     reg_programs="$reg_programs ww3_sbs1"
+    reg_programs="$reg_programs libww3"
     if [ $ESMFMKFILE ]
     then
       reg_programs="$reg_programs ww3_multi_esmf"
@@ -169,29 +169,35 @@
   if [ -n "`grep TRKNC $switch_file`" ]
   then
     cdf_programs="$cdf_programs ww3_systrk"
-    systrck_nc4notrknc=0
   else
-    if [ -n "`grep NC4 $switch_file`" ]
-    then
-      systrck_nc4notrknc=1
-    else
-      systrck_nc4notrknc=0
-      reg_programs="$reg_programs ww3_systrk"
-    fi
+    reg_programs="$reg_programs ww3_systrk"
   fi
 
-  # SHEL PREP GSPL
-  if [ -n "`grep OASIS $switch_file`" ]
+  # PREP GSPL
+  if [ -n "`grep OASIS $switch_file`" ] || [ -n "`grep PDLIB $switch_file`" ]
+  then
+    cdf_programs="$cdf_programs ww3_gspl"
+    cdf_programs="$cdf_programs ww3_prep"
+  else
+    reg_programs="$reg_programs ww3_gspl"
+    reg_programs="$reg_programs ww3_prep"
+  fi
+
+  #SHEL 
+  if [ -n "`grep OASIS $switch_file`" ]  || [ -n "`grep PDLIB $switch_file`" ]
   then
     cdf_programs="$cdf_programs ww3_shel"
-    cdf_programs="$cdf_programs ww3_prep"
-    cdf_programs="$cdf_programs ww3_gspl"
   else
     reg_programs="$reg_programs ww3_shel"
-    reg_programs="$reg_programs ww3_prep"
-    reg_programs="$reg_programs ww3_gspl"
   fi
 
+  #Shared Object
+  if [ -n "`grep -nri fPIC $comp_file`" ]
+  then
+    reg_programs="$reg_programs libww3.so"
+  else
+    echo 'Shared Object     : No'
+  fi
 
 # 1.f sort sequential and parallel programs - - - - - - - - - - - - - - - - - -
 
@@ -219,11 +225,15 @@
 
     # sort in seq or mpi programs
     par_programs="ww3_shel ww3_multi ww3_sbs1"
+    if  [ -n "$(grep TIDE $switch_file)" ]
+    then
+      par_programs="$par_programs ww3_prtide ww3_prnc"
+    fi
     if [ $ESMFMKFILE ]
     then
       par_programs="$par_programs ww3_multi_esmf"
     fi
-    if [ -n "`grep OASIS $switch_file`" ]
+    if [ -n "$(grep OASIS $switch_file)" ]
     then
       par_programs="$par_programs ww3_prnc ww3_prep ww3_prtide"
     fi
@@ -234,6 +244,11 @@
         par_progs="$par_progs $prog"
       else
         seq_progs="$seq_progs $prog"
+      fi
+      # add seq compilation of ww3_prnc if already compiled in par for TIDE
+      if [ "$(echo $prog)" == "ww3_prnc" ] && [ -n "$(grep TIDE $switch_file)" ]
+      then
+        seq_progs="$seq_progs ww3_prnc"
       fi
     else
       seq_progs="$seq_progs $prog"
@@ -250,7 +265,7 @@
   then
     MODES="MPI"
   fi
-# "SHRD OMPG OMPX"
+# "SHRD OMPG"
   if [ ! -n "$(grep MPI $switch_file)" ] && [ -n "$(grep OMPG $switch_file)" ]
   then
     MODES="OMP"
@@ -290,10 +305,11 @@
     ./sort_switch -s -r switch
     sed -e 's/DIST/SHRD/g' \
         -e 's/PDLIB //g'    \
+        -e 's/METIS //g'    \
+        -e 's/SCOTCH //g'    \
         -e 's/OMPG //g'    \
         -e 's/PDLIB //g'    \
         -e 's/OMPH //g'    \
-        -e 's/OMPX //g'    \
         -e 's/MPI //g' switch > $main_dir/work_SEQ/switch.SEQ
   fi
   
@@ -345,7 +361,7 @@
     fi
 
     # clean up ftp
-    rm -f $main_dir/ftn/makefile
+    rm -f $main_dir/src/makefile
 
     # clean up exe
     mkdir -p $main_dir/exe
@@ -370,6 +386,11 @@
     rm -rf ${temp_dir}_$MODE
     mv $temp_dir  ${temp_dir}_$MODE
 
+    # add seq compilation of ww3_prnc if already compiled in par for TIDE
+    if [ "$MODE" == "MPI" ] && [ "$(ls $main_dir/exe_$MODE | grep "ww3_prnc")" == "ww3_prnc" ] && [ -n "$(grep TIDE $main_dir/exe_$MODE/switch.$MODE)" ]
+    then
+      mv $main_dir/exe_$MODE/ww3_prnc $main_dir/exe_$MODE/ww3_prnc.$MODE
+    fi
   done
 
 

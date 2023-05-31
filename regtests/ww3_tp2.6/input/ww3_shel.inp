@@ -7,7 +7,9 @@ $
    F F     Water levels
    F F     Currents
    T T     Winds
-   F       Ice concentrations
+   F F     Ice concentrations
+   F F     Atmospheric momentum
+   F F     Air density
    F       Assimilation data : Mean parameters
    F       Assimilation data : 1-D spectra
    F       Assimilation data : 2-D spectra.
@@ -35,7 +37,7 @@ $             2 : Last process is reserved for all output, and does no
 $                 computing.
 $             3 : Multiple dedicated output processes.
 $
-   3
+   1
 $
 $ Five output types are available (see below). All output types share
 $ a similar format for the first input line:
@@ -64,7 +66,7 @@ $----------------------------------------------------------------
 $
 $ Type 2 : Point output
 $          Standard line and a number of lines identifying the 
-$          longitude, latitude and name (C*10) of output points.
+$          longitude, latitude and name (C*40) of output points.
 $          The list is closed by defining a point with the name
 $          'STOPSTRING'. No point info read if no point output is
 $          requested (i.e., no 'STOPSTRING' needed).

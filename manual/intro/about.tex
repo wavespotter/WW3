@@ -42,37 +42,47 @@ some reviews of recent applications may be found in \cite{tol:WaF02}, \cite{art:
 \vspace{\baselineskip} 
 \noindent 
 The present model version (\WWver) is the new public version based on the
-previous official model release (version 5.16). The following are new features added 
+previous official model release (version 6.07). The following are new features added 
 and code-structure modifications made in \ws\ \WWver since the previous release.
 
 \begin{list}{$\bullet$}{\rightmargin 5mm \parsep 0mm \itemsep 0mm}
 
-\item Preparing for next model version, adding optional instrumentation to code
-      for profiling of memory use (model version 6.00).
+\item Preparing for next model version (model version 7.00).
 
-\item Separates Stokes drift spectrum calculation (US3D) from OUTG and provides 
-      new option to output surface Stokes drift partitioned into run-time defined 
-      frequencies (USSP) (model version 6.01).  
+\item Adds option for reading/writing wind in restart file via WRST switch (model version 7.01).
 
-\item Adds a new module for ESMF interface (model version 6.02). 
+\item Adds capability to interpolate inputs to curvilinear subgrid in multi-grid  (model version 7.02).
 
-\item Adds a capability to update restart file's total energy based on independent 
-      significant wave height analysis (model version 6.03).
+\item Adds second stream of restart file writes (model version 7.03).
 
-\item Adds domain decomposition for unstructured implicit schemes using PDLIB
-      (Parallel Domain Decomposition Library) and ParMetis (model version 6.04).
+\item Changes version reporting in codes to date strings (model version 7.04).
 
-\item Updates the namelist options for the following programs: ww3\_ounf, ww3\_ounp, 
-      ww3\_trnc, ww3\_bounc, and ww3\_shel (model version 6.05).
+\item Updates IS2 default parameterization (model version 7.05).
 
-\item Adding IC5 (the extended FS model) as a sea ice source term option (model version 6.06)
+\item Includes Romero Dissipation in ST4 (model version 7.06).
 
-\item Public release (model version 6.07)
+\item Updates tides and its MPI implementation (model version 7.07).
+
+\item Adds optional opt-out for CFL on boundary condition on unstructured mesh (model version 7.08).
+
+\item Add options for wind-sea and swell component data assimilation to ww3\_uprstr (model version 7.09).
+
+\item Extend parameter set for OASIS-NEMO coupled model systems (model version 7.10).
+
+\item Adds method to output boundary conditions to a rotated lat/lon grid (model version 7.11).
+
+\item Improve NetCDF gridded output for CF compliance (model version 7.12).
+
+\item Major code clean up including removing support for NetCDFv3, making NC4 the default, 
+      making F90 the default (removing the DUM option), removal of compiler directive 
+      switches (C90, NEC, SX6, SX8), removed support for Grib1 (NCEP1 switch), removed OMPX 
+      and NCC switches, removed experimental and supplemental switches (XX0, XXX, FLXX, PRX, 
+      STX, NLX, BTX, DBX, TRX, BSX) and modularized and cleaned up the build (model version 7.13).
+
+\item Changed from WW3 preprocessor and ftn source code directory to using CPP preprocessors and
+      src for the source code directory (model version 7.14).  
 
 \end{list}
-
-Other additions include updates on source term parameterizations such IC2, IS2, ST4, REF1.
-
 
 \vspace{\baselineskip} \noindent 
 Up to date information on this model can be found (including bugs and bug
