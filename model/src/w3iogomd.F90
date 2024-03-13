@@ -1319,12 +1319,8 @@ CONTAINS
          TH2M, STH2M, HSIG, STMAXE, STMAXD,          &
          HCMAXE, HMAXE, HCMAXD, HMAXD, USSP, QP, PQP,&
          PTHP0, PPE, PGW, PSW, PTM1, PT1, PT2, PEP,  &
-<<<<<<< HEAD
-         WBT, PHS2, PTP2, PDIR2, PSI2, PTHP02, PT12, &
-         PNR2
-=======
-         WBT, QKK
->>>>>>> 9d3799f2fd1cf0c366071a6de9c01c9fa3e06ee8
+         WBT, QKK,                                   &
+         PHS2, PTP2, PDIR2, PSI2, PTHP02, PT12, PNR2
     USE W3ODATMD, ONLY: NDST, UNDEF, IAPROC, NAPROC, NAPFLD,        &
          ICPRT, DTPRT, WSCUT, NOSWLL, FLOGRD, FLOGR2,&
          NOGRP, NGRPP, ICPRT2, DTPRT2
@@ -2593,12 +2589,8 @@ CONTAINS
          CFLXYMAX, CFLTHMAX, CFLKMAX, P2SMS, US3D,    &
          TH1M, STH1M, TH2M, STH2M, HSIG, PHICE, TAUICE,&
          STMAXE, STMAXD, HMAXE, HCMAXE, HMAXD, HCMAXD,&
-<<<<<<< HEAD
-         USSP, TAUOCX, TAUOCY, PHS2, PTP2, PDIR2, PSI2,&
-         PNR2, PT12, PTHP02
-=======
-         USSP, TAUOCX, TAUOCY, QKK
->>>>>>> 9d3799f2fd1cf0c366071a6de9c01c9fa3e06ee8
+         USSP, TAUOCX, TAUOCY, QKK,                   &
+         PHS2, PTP2, PDIR2, PSI2, PNR2, PT12, PTHP02
     !/
     USE W3ODATMD, ONLY: NOGRP, NGRPP, IDOUT, UNDEF, NDST, NDSE,     &
          FLOGRD, IPASS => IPASS1, WRITE => WRITE1,   &
