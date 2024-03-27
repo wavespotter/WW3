@@ -684,7 +684,7 @@ CONTAINS
     ELSE
       Usigma = MAX(0.,-0.025*AS)
     END IF
-    USTARsigma=(1.0+0.5*U/(10.+U))*Usigma
+    USTARsigma=(0.895+U**(1.48)/(34.8+1.35*U**(1.48)))*Usigma
 #endif
 #ifdef W3_T
     WRITE (NDST,9003) AS, Usigma, USTARsigma, U
