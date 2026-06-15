@@ -201,11 +201,10 @@ CONTAINS
     ! 10. Source code :
     !
     !/ ------------------------------------------------------------------- /
-    USE W3ODATMD, ONLY: NDSE, NDST, NDSO
+    USE W3ODATMD, ONLY: NDSE, NDST
     USE W3GDATMD, ONLY: ZB, XGRD, YGRD, NTRI, NX, COUNTOT, TRIGP, NNZ, W3DIMUG
     USE W3SERVMD, ONLY: ITRACE, NEXTLN, EXTCDE
     USE CONSTANTS, only: LPDLIB
-    USE W3ODATMD, ONLY: IAPROC
     !
     IMPLICIT NONE
     !/
@@ -216,20 +215,16 @@ CONTAINS
     !/
     !/ local parameters
     !/
-    INTEGER                            :: i,j,k, NODES, NELTS, ID, KID
-    INTEGER                            :: ID1, ID2, KID1, ITMP(3)
+    INTEGER                            :: i,j,k, NODES, NELTS
+    INTEGER                            :: ITMP(3)
     INTEGER                            :: I1, I2, I3
     INTEGER(KIND=4)                    :: Ind,eltype,ntag, INode
-    CHARACTER                          :: COMSTR*1, SPACE*1 = ' ', CELS*64
+    CHARACTER                          :: COMSTR*1
     REAL, ALLOCATABLE                  :: TAGS(:)
-    CHARACTER(LEN=64), ALLOCATABLE     :: ELS(:)
     CHARACTER(LEN=120)                 :: LINE
-    CHARACTER(LEN=50)                  :: CHTMP
-    CHARACTER(LEN=10)                  :: A, B, C
-    INTEGER,ALLOCATABLE                :: NELS(:), TRIGPTMP1(:,:), TRIGPTMP2(:,:)
+    INTEGER,ALLOCATABLE                :: TRIGPTMP1(:,:), TRIGPTMP2(:,:)
     INTEGER(KIND=4),ALLOCATABLE        :: IFOUND(:), VERTEX(:), BOUNDTMP(:)
     DOUBLE PRECISION, ALLOCATABLE      :: XYBTMP1(:,:),XYBTMP2(:,:)
-    REAL                               :: z
 
     OPEN(NDS,FILE = FNAME,STATUS='old')
     READ (NDS,'(A)') COMSTR
@@ -456,11 +451,9 @@ CONTAINS
     ! 10. Source code :
     !
     !/ ------------------------------------------------------------------- /
-    USE W3ODATMD, ONLY: NDSE, NDST, NDSO
+    USE W3ODATMD, ONLY: NDSE
     USE W3GDATMD
     USE W3SERVMD, ONLY: ITRACE, NEXTLN, EXTCDE
-    USE CONSTANTS, only: LPDLIB
-    USE W3ODATMD, ONLY: IAPROC
     !
     IMPLICIT NONE
     !/
@@ -473,7 +466,7 @@ CONTAINS
     !/
     INTEGER                            :: i,j,k, NODES
     LOGICAL                            :: lfile_exists
-    CHARACTER                          :: COMSTR*1, SPACE*1 = ' ', CELS*64
+    CHARACTER                          :: COMSTR*1
     DOUBLE PRECISION, ALLOCATABLE      :: XYBTMP1(:,:)
 
     INQUIRE(FILE=FNAME, EXIST=lfile_exists)
@@ -556,11 +549,6 @@ CONTAINS
     USE W3SERVMD, ONLY: STRACE
 #endif
     !
-
-#ifdef W3_PDLIB
-    use yowElementpool, only: ne_global
-    use yowNodepool, only: np_global
-#endif
     USE W3GDATMD, ONLY : TRIGP, NTRI, NX
     IMPLICIT NONE
     !/
@@ -676,6 +664,7 @@ CONTAINS
     !/                  +-----------------------------------+
     !/
     !/    14-Mar-2018 : Origination.                        ( version 6.02 )
+    !/    04-Jul-2025 : Remove labelled statements          ( version X.XX )
     !/
     !
     !  1. Purpose :
@@ -715,9 +704,9 @@ CONTAINS
     ! 10. Source code :
     !
     !/ ------------------------------------------------------------------- /
-    USE W3GDATMD, ONLY: NX, NY, CCON , COUNTCON
-    USE W3ODATMD, ONLY: NDSE, NDST, NDSO
-    USE W3SERVMD, ONLY: ITRACE, NEXTLN, EXTCDE
+    USE W3GDATMD, ONLY: NX, NY
+    USE W3ODATMD, ONLY: NDSE
+    USE W3SERVMD, ONLY: ITRACE, NEXTLN, EXTCDE, EXTIOF
 #ifdef W3_S
     USE W3SERVMD, ONLY: STRACE
 #endif
@@ -733,9 +722,9 @@ CONTAINS
     !/
     !/ local parameters
     !/
-    INTEGER                            :: I, IERR
+    INTEGER                            :: IERR
     INTEGER(KIND=4)                    :: Ind,ntag, INode
-    CHARACTER                          :: COMSTR*1, SPACE*1 = ' ', CELS*64
+    CHARACTER                          :: COMSTR*1
     REAL, ALLOCATABLE                  :: TAGS(:)
     CHARACTER(LEN=120)                 :: LINE
 
@@ -747,7 +736,8 @@ CONTAINS
     CALL NEXTLN(COMSTR, NDS, NDSE)
     IERR = 0
     DO WHILE (IERR.EQ.0)
-      READ (NDS,'(A100)',END=2001,ERR=2002,IOSTAT=IERR) LINE
+      READ (NDS,'(A100)',IOSTAT=IERR) LINE
+      IF (IERR.NE.0) CALL EXTIOF(NDSE,IERR,'READMSHOBC',FNAME,61)
       READ(LINE,*,IOSTAT=IERR) Ind,ntag
       IF (IERR.EQ.0) THEN
         ALLOCATE(TAGS(ntag))
@@ -756,7 +746,8 @@ CONTAINS
           TMPSTA(1,INODE)=2
           DEALLOCATE(TAGS)
         ELSE
-          GOTO 2001
+          WRITE (NDSE,1001)
+          CALL EXTCDE ( 61 )
         END IF
       END IF
     END DO
@@ -764,17 +755,8 @@ CONTAINS
     UGOBCOK=.TRUE.
     RETURN
     !
-2001 CONTINUE
-    WRITE (NDSE,1001)
-    CALL EXTCDE ( 61 )
-    !
-2002 CONTINUE
-    WRITE (NDSE,1002) IERR
-    CALL EXTCDE ( 62 )
 1001 FORMAT (/' *** WAVEWATCH III ERROR IN READMSHOBC : '/          &
          '     PREMATURE END OF FILE IN READING ',A/)
-1002 FORMAT (/' *** WAVEWATCH III ERROR IN READMSHOBC : '/          &
-         '     ERROR IN READING ',A,'  IOSTAT =',I8/)
 
   END SUBROUTINE READMSHOBC
   !/ ------------------------------------------------------------------- /
@@ -831,7 +813,7 @@ CONTAINS
     !  9. Switches :
     !
     ! 10. Source code :
-    USE W3GDATMD, ONLY: NX, NY, CCON, COUNTCON, IOBP
+    USE W3GDATMD, ONLY: NX, NY
 
 #ifdef W3_S
     USE W3SERVMD, ONLY: STRACE
@@ -939,13 +921,12 @@ CONTAINS
 #ifdef W3_S
     USE W3SERVMD, ONLY: STRACE
 #endif
-    USE W3ODATMD, ONLY: NDSE
 
     IMPLICIT NONE
     !
     !local parameters
     !
-    REAL              :: TL1, TL2, TL3, TMPTRIGP
+    REAL              :: TMPTRIGP
     INTEGER           :: I1, I2, I3
     INTEGER           :: K
     REAL*8            :: PT(3,2)
@@ -1052,14 +1033,12 @@ CONTAINS
     !
     !local parameter
     !
-    INTEGER :: IP, IE
-    INTEGER :: I1, I2, I3, I11, I22, I33
+    INTEGER :: IE
+    INTEGER :: I1, I2, I3
     !
     REAL*8    :: P1(2), P2(2), P3(2)
     REAL*8    :: R1(2), R2(2), R3(2)
     REAL*8    :: N1(2), N2(2), N3(2)
-    REAL*8    :: TMP(3)
-    REAL*8    :: TMPINV(3)
     REAL*8    :: PT(3,2)
 #ifdef W3_S
     INTEGER                      ::  IENT = 0
@@ -1194,7 +1173,7 @@ CONTAINS
     !/ local parameter
 
     INTEGER               :: CONN(NX)
-    INTEGER               :: COUNTER, IP, IE, I, J, N(3)
+    INTEGER               :: IP, IE, I, J, N(3)
 #ifdef W3_S
     INTEGER                      ::  IENT = 0
 #endif
@@ -1392,10 +1371,9 @@ CONTAINS
 
     !/ local parameters
 
-    INTEGER :: COUNTER,ifound,alreadyfound
-    INTEGER :: I, J, K, II
-    INTEGER :: IP, IE, POS, POS_I, POS_J, POS_K, IP_I, IP_J, IP_K
-    INTEGER :: I1, I2, I3, IP2, CHILF(NX)
+    INTEGER :: I, J, K
+    INTEGER :: IP, IE, POS, POS_J, POS_K, IP_I, IP_J, IP_K
+    INTEGER :: I1, I2, I3, CHILF(NX)
     INTEGER :: TMP(NX), CELLVERTEX(NX,COUNTRI,2)
     INTEGER :: COUNT_MAX
     DOUBLE PRECISION   :: TRIA03
@@ -1697,12 +1675,11 @@ CONTAINS
     ! 10. Source code :
     !
     !/ ------------------------------------------------------------------- /
-    USE W3GDATMD
+    USE W3GDATMD, ONLY: GRIDS
     USE W3SERVMD, ONLY: EXTCDE
 #ifdef W3_S
     USE W3SERVMD, ONLY: STRACE
 #endif
-    USE W3ODATMD, ONLY: NDSE
     IMPLICIT NONE
 
     !/ ------------------------------------------------------------------- /
@@ -1716,7 +1693,7 @@ CONTAINS
     !/ ------------------------------------------------------------------- /
     !local parameters
 
-    DOUBLE PRECISION             :: x1, x2, x3
+    DOUBLE PRECISION             :: x1, x2, x3, XTINmod, xavg
     DOUBLE PRECISION             :: y1, y2, y3
     DOUBLE PRECISION             :: s1, s2, s3, sg1, sg2, sg3
     REAL*8                       :: PT(3,2)
@@ -1748,19 +1725,26 @@ CONTAINS
       !coordinates of the 3rd vertex C
       x3 = PT(3,1)
       y3 = PT(3,2)
-      !with M = (XTIN,YTIN) the target point ...
+      !ensure XTIN is defined with same coordinates as element 
+      xavg=(x1+x2+x3)/3 
+      IF (ABS(XTIN-xavg).GT.180) THEN 
+        XTINmod=XTIN-SIGN(360.0d0,(XTIN-xavg))
+      ELSE 
+        XTINmod=XTIN
+      END IF       
+      !with M = (XTINmod,YTIN) the target point ...
       !vector product of AB and AC
       sg3=(y3-y1)*(x2-x1)-(x3-x1)*(y2-y1)
       !vector product of AB and AM
-      s3=(YTIN-y1)*(x2-x1)-(XTIN-x1)*(y2-y1)
+      s3=(YTIN-y1)*(x2-x1)-(XTINmod-x1)*(y2-y1)
       !vector product of BC and BA
       sg1=(y1-y2)*(x3-x2)-(x1-x2)*(y3-y2)
       !vector product of BC and BM
-      s1=(YTIN-y2)*(x3-x2)-(XTIN-x2)*(y3-y2)
+      s1=(YTIN-y2)*(x3-x2)-(XTINmod-x2)*(y3-y2)
       !vector product of CA and CB
       sg2=(y2-y3)*(x1-x3)-(x2-x3)*(y1-y3)
       !vector product of CA and CM
-      s2=(YTIN-y3)*(x1-x3)-(XTIN-x3)*(y1-y3)
+      s2=(YTIN-y3)*(x1-x3)-(XTINmod-x3)*(y1-y3)
       IF ((s1*sg1.GE.0).AND.(s2*sg2.GE.0).AND.(s3*sg3.GE.0)) THEN
         itout=ITRI
         nbFound=nbFound+1
@@ -1906,7 +1890,6 @@ CONTAINS
 #ifdef W3_S
     USE W3SERVMD, ONLY: STRACE
 #endif
-    USE W3ODATMD, ONLY: NDSE
     IMPLICIT NONE
 
     !/ ------------------------------------------------------------------- /
@@ -1920,7 +1903,7 @@ CONTAINS
     !/ ------------------------------------------------------------------- /
     !local parameters
 
-    DOUBLE PRECISION             :: x1, x2, x3, D1, D2, D3, DISTMIN, DDMIN
+    DOUBLE PRECISION             :: x1, x2, x3, D1, D2, D3
     DOUBLE PRECISION             :: s1, s2, s3, sg1, sg2, sg3, smin, ssum
     DOUBLE PRECISION             :: y1, y2, y3
     INTEGER                      :: ITRI, ITRIS
@@ -2082,12 +2065,12 @@ CONTAINS
     ! 10. Source code :
     USE CONSTANTS
     USE W3GDATMD, ONLY : TRIGP, NTRI, NX, NSEA, MAPFS, CLATIS, &
-         MAPSTA, ANGLE, FLAGLL,  IOBP, IEN, TRIA, NSEAL, NTRI
-    USE W3ADATMD, ONLY : NSEALM
+         FLAGLL,  IEN, TRIA, NTRI
 #ifdef W3_PDLIB
     USE yowElementpool
-    use yowNodepool,    only: PDLIB_IEN, PDLIB_TRIA, NPA
+    use yowNodepool,    only: PDLIB_IEN, PDLIB_TRIA
     USE yowExchangeModule, only : PDLIB_exchange1Dreal
+    USE W3GDATMD, ONLY : NSEAL
 #endif
 
     IMPLICIT NONE
@@ -2098,15 +2081,18 @@ CONTAINS
 
     ! local parameters
 
-    INTEGER              :: VERTICES(3), NI(3), NI_GL(3)
-    REAL                 :: TMP1(3), TMP2(3)
-    INTEGER              :: I, IX, IE, IE_GL
+    INTEGER              :: NI(3)
+    INTEGER              :: IE
     REAL                 :: VAR(3), FACT, LATMEAN
-    REAL                 :: DIFFXTMP, DIFFYTMP
     REAL                 :: DEDX(3), DEDY(3)
     REAL                 :: DVDXIE, DVDYIE
-    REAL                 :: WEI(NX), WEI_LOCAL(NSEAL)
-    REAL*8               :: RTMP(NSEAL)
+    REAL                 :: WEI(NX)
+
+#ifdef W3_PDLIB
+    INTEGER              :: NI_GL(3)
+    INTEGER              :: IE_GL
+    REAL                 :: WEI_LOCAL(NSEAL)
+#endif
 
     DIFFX = 0.
     DIFFY = 0.
@@ -2229,8 +2215,12 @@ CONTAINS
     USE W3SERVMD, ONLY: STRACE
 #endif
     !
+#ifdef W3_T
+    USE W3GDATMD, ONLY: MAPSF
+#endif
+    !
     USE W3ODATMD, ONLY: NBI, NDSE, ISBPI, XBPI, YBPI
-    USE W3GDATMD, ONLY: NX, XGRD, YGRD, MAPSTA, MAPFS, MAPSF
+    USE W3GDATMD, ONLY: NX, XGRD, YGRD, MAPSTA, MAPFS
 
 
     REAL, INTENT(IN)         :: DISTMIN
@@ -2370,8 +2360,6 @@ CONTAINS
     !
     !
     USE W3GDATMD, ONLY: NX, NTRI, TRIGP
-    USE W3ODATMD, ONLY: IAPROC
-
 
     IMPLICIT NONE
 
@@ -2386,7 +2374,6 @@ CONTAINS
     INTEGER          :: ISFINISHED !, INEXT, IPREV
     INTEGER :: INEXT(3), IPREV(3)
     INTEGER          :: ZNEXT, IP, I, IE, IPNEXT, IPPREV, COUNT
-    integer nb0, nb1, nbM1
     STATUS = -1
     INEXT=(/ 2, 3, 1 /) !IPREV=1+MOD(I+1,3)
     IPREV=(/ 3, 1, 2 /) !INEXT=1+MOD(I,3)
@@ -2871,19 +2858,13 @@ CONTAINS
     USE CONSTANTS
     !
     !
-    USE W3GDATMD, ONLY: NX, NY, NSEA, MAPFS,                        &
-         NK, NTH, DTH, XFR, MAPSTA, COUNTRI,         &
-         ECOS, ESIN, IEN, NTRI, TRIGP,               &
-         IOBP,IOBPD, IOBPA,                          &
-#ifdef W3_REF1
-         REFPARS, REFLC, REFLD,                      &
-#endif
-         ANGLE0, ANGLE
+    USE W3GDATMD, ONLY: NX, NTH, MAPSTA, ECOS, ESIN, IEN,      &
+         NTRI, TRIGP, IOBP,IOBPD, IOBPA
 
-    USE W3ODATMD, ONLY: TBPI0, TBPIN, FLBPI
-    USE W3ADATMD, ONLY: CG, CX, CY, ATRNX, ATRNY, ITIME, CFLXYMAX
-    USE W3IDATMD, ONLY: FLCUR
-    USE W3ODATMD, only : IAPROC
+#ifdef W3_REF1
+    USE W3GDATMD, ONLY: REFPARS, REFLC, REFLD, MAPFS, DTH
+#endif
+
 #ifdef W3_S
     USE W3SERVMD, ONLY: STRACE
 #endif
@@ -2896,9 +2877,7 @@ CONTAINS
     !/ ------------------------------------------------------------------- /
     !/ Local parameters
     !/
-    INTEGER                 :: ITH, IX, I, J, IP, IE, NDIRSUM
-    REAL (KIND = 8)         :: COSSUM, SINSUM
-    REAL (KIND = 8)         :: DIRMIN, DIRMAX, SHIFT, TEMPO, DIRCOAST
+    INTEGER                 :: ITH, I, IP, IE
     REAL (KIND = 8)         :: X1, X2, Y1, Y2, DXP1, DXP2, DXP3
     REAL (KIND = 8)         :: DYP1, DYP2, DYP3, eDet1, eDet2, EVX, EVY
     REAL(KIND=8), PARAMETER :: THR    = TINY(1.)
@@ -2907,6 +2886,11 @@ CONTAINS
     CHARACTER(60) :: FNAME
 #ifdef W3_S
     INTEGER, SAVE           :: IENT = 0
+#endif
+
+#ifdef W3_REF1
+    INTEGER                 :: NDIRSUM
+    REAL (KIND = 8)         :: COSSUM, SINSUM, DIRCOAST
 #endif
     !/ ------------------------------------------------------------------- /
     !
@@ -3090,7 +3074,6 @@ CONTAINS
     !
     !     Local variables.
     !     ----------------------------------------------------------------
-    INTEGER :: I
     INTEGER :: R1GT180, R2GT180, R3GT180
     !     ----------------------------------------------------------------
     !

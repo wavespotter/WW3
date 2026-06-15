@@ -62,6 +62,12 @@ $
 $   Janssen / Ardhuin   : Namelist SIN4
 $                             ZWND : Height of wind (m).
 $                           ALPHA0 : minimum value of Charnock coefficient
+$                           CAPCHA : enable functional form for Cd (1=enabled),
+$                                      only valid when SINTABLE=0.
+$                             UCAP : Wind speed threshold for cap (CAPCHA=1)
+$                        SIGMAUCAP : Width of functional form (CAPCHA=1)
+$                             CHA0 : Initial Charnock coefficient (CAPCHA=1)
+$                           CHAMIN : Minimum Charnock value (CAPCHA=1)
 $                            Z0MAX : maximum value of air-side roughness z0
 $                          BETAMAX : maximum value of wind-wave coupling
 $                           SINTHP : power of cosine in wind input
@@ -360,7 +366,7 @@ $                        UGOBCAUTO : TRUE: OBC points are taken from  type 15 el
 $                                    FALSE: OBC points must be listed in ww3_grid.inp
 $                       UGOBCDEPTH : Threshold ( < 0) depth for OBC points if UGOBCAUTO is TRUE
 $                        UGOBCFILE : Reading boundary files from a file
-$                           EXPFSN : Activation of N scheme (only one of the below 4, True - Active, False - not active) 
+$                           EXPFSN : Activation of N scheme (only one of the below 4, True - Active, False - not active)
 $                         EXPFSPSI : Activation of PSI scheme
 $                         EXPFSFCT : Activation of FCT scheme
 $                           IMPFSN : Activation of N implicit scheme
@@ -373,7 +379,7 @@ $            JGS_TERMINATE_MAXITER : max. Number of iterations
 $         JGS_TERMINATE_DIFFERENCE : Terminate based on the total change of the unweightet sum of wave action
 $               JGS_TERMINATE_NORM : Terminate based on the norm of the solution
 $                   JGS_USE_JACOBI : Use Jacobi solver family
-$           JGS_BLOCK_GAUSS_SEIDEL : Use Block Gauss Seidel method for imptotal instead of the conservative jacobi iterator. 
+$           JGS_BLOCK_GAUSS_SEIDEL : Use Block Gauss Seidel method for imptotal instead of the conservative jacobi iterator.
 $                      JGS_MAXITER : max. Number of solver iterations
 $                         JGS_PMIN : % of grid points that do not need to converge during solver iteration.
 $                     JGS_DIFF_THR : implicit solver threshold for JGS_TERMINATE_DIFFERENCE
@@ -519,7 +525,7 @@ $                          ICEWIND : Scale factor for reduction of wind input by
 $                           ICESNL :
 $                           ICESDS :
 $                          ICEHFAC : Scale factor for sea ice thickness
-$                         ICEHDISP : Minimum thickness of sea ice in the dispersion 
+$                         ICEHDISP : Minimum thickness of sea ice in the dispersion
 $                                    relation before relaxing the conv. criterion
 $                         ICEDDISP :
 $                         ICEFDISP :

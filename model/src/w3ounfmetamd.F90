@@ -482,6 +482,7 @@ CONTAINS
     !/                  +-----------------------------------+
     !/
     !/    09-Nov-2020 : Creation                            ( version 7.12 )
+    !/    04-Jul-2025 : Remove labelled statements          ( version X.XX )
     !/
     !
     !  1. Purpose :
@@ -532,7 +533,15 @@ CONTAINS
     !   - a comment line (starting with $)
     !   - the end of the file
     DO
-      READ(NDMI, '(A)', iostat=IERR, err=101, end=100) BUF
+      READ(NDMI, '(A)', iostat=IERR) BUF
+      IF (IERR.LT.0) THEN
+        BUF = ''
+        EOF = .TRUE.
+        RETURN
+      ELSE IF (IERR.GT.0) THEN
+        WRITE(NDSE, 1000) FN_META, ILINE, IERR
+        CALL EXTCDE(10)
+      END IF
 
       ILINE = ILINE + 1
 
@@ -581,18 +590,6 @@ CONTAINS
       RETURN
     ENDDO
 
-    !/    Escape locations
-    !
-    !     End of file
-100 CONTINUE
-    BUF = ''
-    EOF = .TRUE.
-    RETURN
-    !
-    !     I/O Error
-101 CONTINUE
-    WRITE(NDSE, 1000) FN_META, ILINE, IERR
-    CALL EXTCDE(10)
     !
 1000 FORMAT (/' *** WAVEWATCH III ERROR IN W3OUNFMETA : '/           &
          '     ERROR READING METADATA FILE'/                    &
@@ -3729,14 +3726,14 @@ CONTAINS
     ! IFI=6, IFJ=9, P2L
     META => GROUP(6)%FIELD(9)%META
     ! Information for spectral microseismic generation data (2nd file)
-    META(1)%FSC = 0.0004
     META(1)%VARNM='p2l'
     META(1)%VARNL='base ten logarithm of power spectral density of equivalent surface pressure'
     !META(1)%VARNS='base_ten_logarithm_of_power_spectral_density_of_equivalent_surface_pressure'
     META(1)%VARNS=''
     META(1)%VARNG='base_ten_logarithm_of_power_spectral_density_of_equivalent_surface_pressure'
-    IF (NCVARTYPE.EQ.2) THEN
+    IF (NCVARTYPE.LE.3) THEN
       META(1)%UNITS='log10(Pa2 m2 s+1E-12)'
+      META(1)%FSC = 0.0004
       META(1)%VMIN = -12.
       META(1)%VMAX = 12.
     ELSE
@@ -4059,6 +4056,45 @@ CONTAINS
     META(1)%VARNC='2D wavenumber peakedness'
     META(1)%VMIN = 0
     META(1)%VMAX = 1600
+    ! IFI=8, IFJ=7, SKW
+    META => GROUP(8)%FIELD(7)%META
+    META(1)%FSC    = 0.00001
+    META(1)%UNITS  = '1'
+    META(1)%ENAME  = '.skw'
+    META(1)%VARNM='skw'
+    META(1)%VARNL='skewness'
+    !META(1)%VARNS='sea_surface_wave_peakedness'
+    META(1)%VARNS=''
+    META(1)%VARNG='skewness of P(z,sx,sy=0)'
+    META(1)%VARNC='skewness of P(z,sx,sy=0)'
+    META(1)%VMIN = 0
+    META(1)%VMAX = 1
+    ! IFI=8, IFJ=8, EMB
+    META => GROUP(8)%FIELD(8)%META
+    META(1)%FSC    = 0.00001
+    META(1)%UNITS  = '1'
+    META(1)%ENAME  = '.emb'
+    META(1)%VARNM='emb'
+    META(1)%VARNL='EM-bias'
+    !META(1)%VARNS='sea_surface_wave_peakedness'
+    META(1)%VARNS=''
+    META(1)%VARNG='EM bias coefficient'
+    META(1)%VARNC='EM bias coefficient'
+    META(1)%VMIN = -1
+    META(1)%VMAX = 1
+    ! IFI=8, IFJ=7, SKW
+    META => GROUP(8)%FIELD(9)%META
+    META(1)%FSC    = 0.00001
+    META(1)%UNITS  = '1'
+    META(1)%ENAME  = '.emc'
+    META(1)%VARNM='emc'
+    META(1)%VARNL='trackerbias'
+    !META(1)%VARNS='sea_surface_wave_peakedness'
+    META(1)%VARNS=''
+    META(1)%VARNG='tracker bias coefficient'
+    META(1)%VARNC='tracker bias coefficient'
+    META(1)%VMIN = -1
+    META(1)%VMAX = 1    !
     !
     !---------- GROUP 9 ----------------
     !
