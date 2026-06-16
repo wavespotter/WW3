@@ -3963,25 +3963,25 @@ CONTAINS
               READ (NDSOG,IOSTAT=IERR) PNR(1:NSEA)
               ! CAH: Read second partitioning scheme
             ELSE IF ( IFI .EQ. 4 .AND. IFJ .EQ. 18 ) THEN
-              READ (NDSOG,END=801,ERR=802,IOSTAT=IERR)         &
+              READ (NDSOG,IOSTAT=IERR)         &
                    PHS2(1:NSEA,0:1)
             ELSE IF ( IFI .EQ. 4 .AND. IFJ .EQ. 19 ) THEN
-              READ (NDSOG,END=801,ERR=802,IOSTAT=IERR)         &
+              READ (NDSOG,IOSTAT=IERR)         &
                    PTP2(1:NSEA,0:1)
             ELSE IF ( IFI .EQ. 4 .AND. IFJ .EQ. 20 ) THEN
-              READ (NDSOG,END=801,ERR=802,IOSTAT=IERR)         &
+              READ (NDSOG,IOSTAT=IERR)         &
                    PDIR2(1:NSEA,0:1)
             ELSE IF ( IFI .EQ. 4 .AND. IFJ .EQ. 21 ) THEN
-              READ (NDSOG,END=801,ERR=802,IOSTAT=IERR)         &
+              READ (NDSOG,IOSTAT=IERR)         &
                    PSI2(1:NSEA,0:1)
             ELSE IF ( IFI .EQ. 4 .AND. IFJ .EQ. 22 ) THEN
-              READ (NDSOG,END=801,ERR=802,IOSTAT=IERR)         &
+              READ (NDSOG,IOSTAT=IERR)         &
                    PTHP02(1:NSEA,0:1)
             ELSE IF ( IFI .EQ. 4 .AND. IFJ .EQ. 23 ) THEN
-              READ (NDSOG,END=801,ERR=802,IOSTAT=IERR)         &
+              READ (NDSOG,IOSTAT=IERR)         &
                    PT12(1:NSEA,0:1)
             ELSE IF ( IFI .EQ. 4 .AND. IFJ .EQ. 24 ) THEN
-              READ (NDSOG,END=801,ERR=802,IOSTAT=IERR) PNR2(1:NSEA)
+              READ (NDSOG,IOSTAT=IERR) PNR2(1:NSEA)
               !
               !     Section 5)
               !
