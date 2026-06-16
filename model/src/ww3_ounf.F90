@@ -3260,6 +3260,24 @@ CONTAINS
                 LOOP = .TRUE.
                 EXIT
               END DO
+            ! PBS: The upstream logic uses NOGE(IFI)-2 to skip the last two
+            ! fields in group 4 (PWST, PNR), which are scalar-per-point and
+            ! have no partition dimension. We extended group 4 with a second
+            ! partitioning scheme (PTMETH2), adding fields 18-24, describing
+            ! bulk parameters (height, period, direction, spread) per partition.
+            ! Of these, PNR2 (IFJ=24) is likewise scalar-per-point (it stores
+            ! the number of partitions found) and correctly falls into the ELSE
+            ! branch. However PT12 (IFJ=23) is partitioned (dimensioned 0:1)
+            ! and must loop over IPART — it is incorrectly excluded by the -2
+            ! rule since it is now the second-to-last field.
+            ELSE IF (IFI .EQ. 4 .AND. IFJ .EQ. 23) THEN
+              DO WHILE (INDEXIPART.LT.NBIPART)
+                INDEXIPART=INDEXIPART+1
+                IF (TABIPART(INDEXIPART).EQ.-1) CYCLE
+                IPART=TABIPART(INDEXIPART)
+                LOOP = .TRUE.
+                EXIT
+              END DO
             ELSE
               INDEXIPART=1
             END IF
