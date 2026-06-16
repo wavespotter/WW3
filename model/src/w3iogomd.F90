@@ -2980,7 +2980,7 @@ CONTAINS
           IF ( FLOGRD( 4,19) ) PTP2 (ISEA,:)  = UNDEF
           IF ( FLOGRD( 4,20) ) PDIR2 (ISEA,:) = UNDEF
           IF ( FLOGRD( 4,21) ) PSI2 (ISEA,:)  = UNDEF
-          IF ( FLOGRD( 4,22) ) PTHP0(ISEA,:)  = UNDEF
+          IF ( FLOGRD( 4,22) ) PTHP02(ISEA,:)  = UNDEF
           IF ( FLOGRD( 4,23) ) PT12 (ISEA,:)  = UNDEF
           IF ( FLOGRD( 4,24) ) PNR2 (ISEA  )  = UNDEF
           !
@@ -3466,7 +3466,7 @@ CONTAINS
             ELSE IF ( IFI .EQ. 4 .AND. IFJ .EQ. 24 ) THEN
               WRITE ( NDSOG ) PNR2(1:NSEA)
 #ifdef W3_ASCII
-              WRITE ( NDSOA,* ) 'PNR:', PNR(1:NSEA)
+              WRITE ( NDSOA,* ) 'PNR2:', PNR2(1:NSEA)
 #endif
               !
               !     Section 5)

@@ -3118,7 +3118,7 @@ CONTAINS
     META(1)%ENAME = '.pspr'// IPART_TOKEN
     META(1)%VARNM = 'pspr'// IPART_TOKEN
     META(1)%VARNL = 'directional spread partition '// IPART_TOKEN
-    META(1)%VARNS = 'sea_surface_'// SPART_TOKEN_ //'_wave_diectional_spread'
+    META(1)%VARNS = 'sea_surface_'// SPART_TOKEN_ //'_wave_directional_spread'
     META(1)%VARNG = 'directional_spread_partition_'// IPART_TOKEN
     META(1)%VARNC = PARTCOM
     META(1)%VMIN = 0
@@ -3327,7 +3327,7 @@ CONTAINS
     META(1)%ENAME = '.secondary_pspr'// IPART_TOKEN
     META(1)%VARNM = 'secondary_pspr'// IPART_TOKEN
     META(1)%VARNL = 'directional spread partition '// IPART_TOKEN
-    META(1)%VARNS = 'sea_surface_'// SPART_TOKEN_ //'_wave_diectional_spread'
+    META(1)%VARNS = 'sea_surface_'// SPART_TOKEN_ //'_wave_directional_spread'
     META(1)%VARNG = 'directional_spread_partition_'// IPART_TOKEN
     META(1)%VARNC = 'Wave components defined using 0.1 Hz spectral frequency cutoff'
     META(1)%VMIN = 0
