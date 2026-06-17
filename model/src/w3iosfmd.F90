@@ -38,6 +38,7 @@ MODULE W3IOSFMD
   !/                            INIT_GET_JSEA_ISPROC      ( version 6.04 )
   !/    25-Jul-2018 : Changed DIMXP size for partitioning ( version 6.05 )
   !/                  methods 4 and 5. (C Bunney, UKMO)
+  !/    04-Jul-2025 : Remove labelled statements          ( version X.XX )
   !/
   !/    Copyright 2009-2012 National Weather Service (NWS),
   !/       National Oceanic and Atmospheric Administration.  All rights
@@ -72,7 +73,7 @@ MODULE W3IOSFMD
   !     ----------------------------------------------------------------
   !      W3PART    Subr. W3PARTMD Spectral partition for single spectrum.
   !      STRACE    Sur.  W3SERVMD Subroutine tracing.
-  !      EXTCDE    Subr.   Id.    Program abort.
+  !      EXTOPN    Subr. W3SERVMD Abort if error when opening file.
   !      MPI_SEND, MPI_RECV
   !                               MPI send and recieve routines
   !     ----------------------------------------------------------------
@@ -173,10 +174,9 @@ CONTAINS
     USE W3SERVMD, ONLY: STRACE
 #endif
     !
-    USE W3GDATMD, ONLY: NSEA, NSEAL, MAPSF, MAPSTA, NK, NTH, SIG
+    USE W3GDATMD, ONLY: NSEAL, MAPSF, MAPSTA, NK, NTH, SIG
     USE W3ADATMD, ONLY: WN, CG, U10, U10D, DW
-    USE W3ODATMD, ONLY: IAPROC, NAPROC, OUTPTS, O6INIT,       &
-         ICPRT, DTPRT, DIMP, PTMETH, ICPRT2, DTPRT2
+    USE W3ODATMD, ONLY: OUTPTS, O6INIT, ICPRT, DTPRT, DIMP, PTMETH, ICPRT2, DTPRT2
     USE W3WDATMD, ONLY: VA, ASF
     USE W3ADATMD, ONLY: NSEALM
     USE W3PARALL, ONLY: INIT_GET_ISEA, INIT_GET_JSEA_ISPROC
@@ -223,9 +223,9 @@ CONTAINS
 
     ! CAH: DIMP is the number of parameters in partition
     ! CAH: DIMXP is the number of partitions
-    ALLOCATE ( XP(DIMP,0:DIMXP) ) 
+    ALLOCATE ( XP(DIMP,0:DIMXP) )
     ! CAH: PTMETH2=5 only ever creates 2 partitions
-    ALLOCATE ( XP2(DIMP,0:2) ) 
+    ALLOCATE ( XP2(DIMP,0:2) )
     !
     ! CAH: ICPRT is the counter for partitions
     IF ( O6INIT ) THEN
@@ -453,7 +453,7 @@ CONTAINS
     !      Name      Type  Module   Description
     !     ----------------------------------------------------------------
     !      STRACE    Subr. W3SERVMD Subroutine tracing.
-    !      EXTCDE    Subr.   Id.    Program abort.
+    !      EXTOPN    Subr.   Id.    Abort if error when opening file.
     !      MPI_SEND, MPI_RECV
     !                               MPI send and recieve routines
     !     ----------------------------------------------------------------
@@ -481,7 +481,7 @@ CONTAINS
     !/ ------------------------------------------------------------------- /
     !/
     USE CONSTANTS
-    USE W3SERVMD, ONLY: EXTCDE
+    USE W3SERVMD, ONLY: EXTOPN
 #ifdef W3_S
     USE W3SERVMD, ONLY: STRACE
 #endif
@@ -491,11 +491,10 @@ CONTAINS
     USE W3GDATMD, ONLY: NSEAL
 #endif
     USE W3WDATMD, ONLY: TIME, ASF
-    USE W3ODATMD, ONLY: NDSE, IAPROC, NAPROC, NAPPRT, NAPERR, &
-         IPASS => IPASS6, FLFORM, FNMPRE, OUTPTS,    &
+    USE W3ODATMD, ONLY: NDSE, IAPROC, NAPROC, NAPPRT, &
+         IPASS => IPASS6, FLFORM, FNMPRE, OUTPTS,     &
          IX0, IXN, IXS, IY0, IYN, IYS, DIMP
     USE W3ADATMD, ONLY: DW, U10, U10D, CX, CY
-    USE W3ADATMD, ONLY: NSEALM
     USE W3PARALL, ONLY: INIT_GET_JSEA_ISPROC
 #ifdef W3_MPI
     USE W3ADATMD, ONLY: MPI_COMM_WAVE
@@ -504,12 +503,15 @@ CONTAINS
 #ifdef W3_T
     USE W3ODATMD, ONLY: NDST
 #endif
-    !
-    IMPLICIT NONE
+#if defined(W3_T) || defined(W3_MPI)
+    USE W3ADATMD, ONLY: NSEALM
+#endif
     !
 #ifdef W3_MPI
-    INCLUDE "mpif.h"
+    use mpi_f08
 #endif
+    !
+    IMPLICIT NONE
     !/
     !/ ------------------------------------------------------------------- /
     !/ Parameter list
@@ -520,10 +522,10 @@ CONTAINS
     !/ Local parameters
     !/
     INTEGER                 :: I, J, IERR, ISEA, JSEA, JAPROC,      &
-         IX, IY, IP, IOFF, DTSIZ=0
+         IX, IY, IP, IOFF, DTSIZ
 #ifdef W3_MPI
-    INTEGER                 :: ICSIZ, IERR_MPI, IT,            &
-         STATUS(MPI_STATUS_SIZE,1), JSLM
+    INTEGER                 :: ICSIZ, IERR_MPI, IT, JSLM
+    type(MPI_STATUS)        :: STATUS
 #endif
 #ifdef W3_S
     INTEGER, SAVE           :: IENT = 0
@@ -554,6 +556,8 @@ CONTAINS
 #ifdef W3_T
     WRITE (NDST,9000) IPASS, FLFORM, NDSPT, IMOD, IAPROC, NAPPRT
 #endif
+
+    DTSIZ=0
     !
     ! -------------------------------------------------------------------- /
     ! 1.  Set up file ( IPASS = 1 and proper processor )
@@ -571,11 +575,12 @@ CONTAINS
       !
       IF ( FLFORM ) THEN
         OPEN (NDSPT,FILE=FNMPRE(:J)//'partition.'//FILEXT(:I),   &
-             ERR=800,IOSTAT=IERR)
+              IOSTAT=IERR)
       ELSE
         OPEN (NDSPT,FILE=FNMPRE(:J)//'partition.'//FILEXT(:I),   &
-             form='UNFORMATTED',convert=file_endian,ERR=800,IOSTAT=IERR)
+             form='UNFORMATTED',convert=file_endian,IOSTAT=IERR)
       END IF
+      IF (IERR.NE.0) CALL EXTOPN(NDSE,IERR,'W3IOSF','',1)
       !
       REWIND (NDSPT)
       !
@@ -776,12 +781,6 @@ CONTAINS
     !
     RETURN
     !
-    ! Escape locations read errors --------------------------------------- *
-    !
-800 CONTINUE
-    IF ( IAPROC .EQ. NAPERR ) WRITE (NDSE,1000) IERR
-    CALL EXTCDE ( 1 )
-    !
     ! Formats
     !
 910 FORMAT (A,1X,A)
@@ -792,10 +791,6 @@ CONTAINS
 941 FORMAT (1X,I8.8,1X,I6.6,2(F8.1,'E3'),2X,'''',A10,'''',     &
          1X,I2,F7.1,F5.1,f6.1,F5.2,F6.1)
 942 FORMAT (I3,3F8.2,2F9.2,F7.2)
-    !
-1000 FORMAT (/' *** WAVEWATCH III ERROR IN W3IOSF : '/               &
-         '     ERROR IN OPENING FILE'/                          &
-         '     IOSTAT =',I5/)
     !
 #ifdef W3_T
 9000 FORMAT (' TEST W3IOSF : IPASS =',I4,',  FLFROM = ',L1,        &
