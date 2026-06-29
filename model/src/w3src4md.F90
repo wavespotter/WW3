@@ -555,8 +555,8 @@ CONTAINS
     REAL                    :: BBETA_EFF        !PBS: The effective "betamax" after we apply a linear approximation.
                                                 !     Part of SOFAR enhancements to be able to better calibrate betamax
                                                 !     Estimated as BBETA_EFF= BETAMAX_INTERCEPT + BETAMAX_SLOPE * U
-    REAL   , PARAMETER      :: BETAMAX_INTERCEPT=1.43 ! Intercept of the linear betamax relation
-    REAL   , PARAMETER      :: BETAMAX_SLOPE=0.0 ! Slope of the linear betamax relation
+    REAL   , PARAMETER      :: BETAMAX_INTERCEPT=1.134 ! Intercept of the linear betamax relation
+    REAL   , PARAMETER      :: BETAMAX_SLOPE=0.0155 ! Slope of the linear betamax relation
 
 #if defined(W3_T) || defined(W3_STAB3)
     REAL                    :: Usigma           !standard deviation of U due to gustiness
@@ -611,7 +611,8 @@ CONTAINS
     ! Coupling coefficient times density ratio DRAT
     ! PBS: Instead of a constant betamax we use a betamax linearly dependent on wind speed to allow for more flexibility
     !      in calibration. (SOFAR SPECIFIC)
-    BBETA_EFF = BETAMAX_INTERCEPT + BETAMAX_SLOPE * MIN(U, 25.0)
+    BBETA_EFF = MAX( MIN( BETAMAX_INTERCEPT + BETAMAX_SLOPE * U, 1.26 ), 1.46)
+
     CONST1=BBETA_EFF/KAPPA**2  ! needed for the tail
     CONST0=CONST1*DRAT          ! needed for the resolved spectrum
     !
