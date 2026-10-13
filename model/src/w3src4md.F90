@@ -99,6 +99,17 @@ MODULE W3SRC4MD
   REAL,    PARAMETER      :: UMAX    = 50.
   REAL,    PARAMETER      :: TAUWMAX = 2.2361 !SQRT(5.)
   INTEGER                 :: DIKCUMUL
+  ! physics_revamp_v1 drag closure: background Charnock alpha_B(u*) (piecewise linear in u*, constant outside the
+  ! table) replaces the constant ALPHA0 in TABU_STRESS, so that the total drag follows COARE 3.5 at mature sea
+  ! states, uncapped at high wind. ALPHAMFAC widens the Charnock range of the tail tables (default 20) to cover it.
+  INTEGER, PARAMETER      :: NABTAB = 17
+  REAL,    PARAMETER      :: ABUST(NABTAB) = (/ 0.1156, 0.1517, 0.1900, 0.2297, 0.2721, 0.3685, 0.4743, &
+                             0.5914, 0.7151, 0.8459, 0.9148, 0.9970, 1.1508, 1.3214, 1.4954, 1.6008, 1.6907 /)
+  REAL,    PARAMETER      :: ABVAL(NABTAB) = (/ 0.00454, 0.00452, 0.00452, 0.00452, 0.00480, 0.00614, 0.00766, &
+                             0.00894, 0.01012, 0.01102, 0.01148, 0.01241, 0.01398, 0.01506, 0.01648, 0.01742, 0.02130 /)
+  REAL,    PARAMETER      :: ALPHAMFAC = 60.
+  ! physics_revamp_v1: U10 passed from W3SIN4 to W3SDS4 (W3SRCE calls W3SIN4 first for the same point)
+  REAL                    :: U10SDS = 0.
   !  Size of wave height table for integrating the PDF of wave heights
   INTEGER,    PARAMETER      :: NKHI=100, FAC_KD2=1000
   REAL,    PARAMETER      :: FAC_KD1=1.01, KHSMAX=2., KHMAX=2.
@@ -567,6 +578,8 @@ CONTAINS
     INTEGER IND,J,I,ISTAB
     REAL DSTAB(3,NSPEC), DVISC, DTURB
     REAL STRESSSTAB(3,2),STRESSSTABN(3,2)
+    ! physics_revamp_v1: u* coefficient of the turbulent swell damping, against the wind only (see DTURB)
+    REAL, PARAMETER         :: FUOPP = 0.03636
     !
     INTEGER, PARAMETER      :: JTOT=50
     REAL   , PARAMETER      :: KM=363.,CMM=0.2325  ! K and C at phase speed minimum in rad/m
@@ -597,6 +610,7 @@ CONTAINS
     DSTAB =0.
     STRESSSTAB =0.
     STRESSSTABN =0.
+    U10SDS = U
     !
     ! Coupling coefficient times density ratio DRAT
     !
@@ -750,7 +764,9 @@ CONTAINS
               ! The source term Sp is beta * omega * X**2
               ! as given by Janssen 1991 eq. 19
               ! Note that this is slightly diffent from ECWAM code CY45R2 where ZLOG is replaced by ??
-              DSTAB(ISTAB,IS) = CONST*EXP(ZLOG)*ZLOG**4*UCN*UCN*COSWIND**SSINTHP
+              ! physics_revamp_v1: Janssen (1991) prefactor uses u*/c; the shifted UCN = u*/c + ZZALP belongs in the
+              ! exponent only (as ECWAM since CY46R1). UCN**2 overestimates the input, relatively most at small u*/c.
+              DSTAB(ISTAB,IS) = CONST*EXP(ZLOG)*ZLOG**4*(USTP*CM)**2*COSWIND**SSINTHP
 
               ! Below is an example with breaking probability feeding back to the input...
               !DSTAB(ISTAB,IS) = CONST*EXP(ZLOG)*ZLOG**4  &
@@ -775,7 +791,9 @@ CONTAINS
                .OR.SSWELLF(3).GT.0) THEN
             !
             DVISC=SWELLCOEFV
-            DTURB=SWELLCOEFT*(FW*UORB+(FU+FUD*COSWIND)*USTP)
+            ! physics_revamp_v1: the u* part of the turbulent swell damping acts only against the wind
+            ! (FUOPP max(0, -cos)); the default FU+FUD cos also damps swell running with or across the wind.
+            DTURB=SWELLCOEFT*(FW*UORB+FUOPP*MAX(0.,-COSWIND)*USTP)
             !
             DSTAB(ISTAB,IS) = DSTAB(ISTAB,IS) + PTURB*DTURB +  PVISC*DVISC
           END IF
@@ -1367,6 +1385,7 @@ CONTAINS
     INTEGER I,J,ITER
     REAL ZTAUW,UTOP,CDRAG,WCD,USTOLD,TAUOLD
     REAL X,UST,ZZ0,F,DELF,ZZ00
+    REAL ALPB,SLP
     !
     !
     DELU    = UMAX/FLOAT(JUMAX)
@@ -1379,18 +1398,19 @@ CONTAINS
         WCD     = SQRT(CDRAG)
         USTOLD  = UTOP*WCD
         TAUOLD  = MAX(USTOLD**2, ZTAUW+EPS1)
-        DO ITER=1,NITER
+        ! physics_revamp_v1: background Charnock alpha_B(u*) from the table instead of AALPHA. Newton step
+        ! includes d ln alpha_B / d ln u*; 60 iterations (as used in the fit, instead of NITER).
+        DO ITER=1,60
           X   = ZTAUW/TAUOLD
           UST = SQRT(TAUOLD)
-          ZZ00=AALPHA*TAUOLD/GRAV
+          CALL ALPHAB_TAB(UST, ALPB, SLP)
+          ZZ00=ALPB*TAUOLD/GRAV
           IF (ZZ0MAX.NE.0) ZZ00=MIN(ZZ00,ZZ0MAX)
           ! Corrects roughness ZZ00 for quasi-linear effect
           ZZ0 = ZZ00/(1.-X)**XM
-          !ZNU = 0.1*nu_air/UST  ! This was removed by Bidlot in 1996
-          !ZZ0 = MAX(ZNU,ZZ0)
           F   = UST-KAPPA*UTOP/(ALOG(ZZWND/ZZ0))
-          DELF= 1.-KAPPA*UTOP/(ALOG(ZZWND/ZZ0))**2*2./UST &
-               *(1.-(XM+1)*X)/(1.-X)
+          DELF= 1.-KAPPA*UTOP/(ALOG(ZZWND/ZZ0))**2/UST &
+               *(2.*(1.-(XM+1.)*X)/(1.-X)+SLP)
           UST = UST-F/DELF
           TAUOLD= MAX(UST**2., ZTAUW+EPS1)
         END DO
@@ -1524,7 +1544,7 @@ CONTAINS
 #endif
     !
     USTARM = 5.
-    ALPHAM = 20.*AALPHA
+    ALPHAM = ALPHAMFAC*AALPHA
     DELUST = USTARM/REAL(IUSTAR)
     DELALP = ALPHAM/REAL(IALPHA)
     CONST1 = BBETA/KAPPA**2
@@ -1694,7 +1714,9 @@ CONTAINS
     INTEGER                 :: INIUSTAR, INIALPHA, INILEVTAIL, IERR
     CHARACTER(160)          :: FNAMETAB
     LOGICAL                 :: NOFILE
-    CHARACTER(LEN=10), PARAMETER :: VERGRD = '2018-06-08'
+    ! physics_revamp_v1: new version tag, so that an ST4TABUHF2.bin built with the default Charnock range (ALPHAMFAC 20)
+    ! is not reused (the header check does not include ALPHAM)
+    CHARACTER(LEN=10), PARAMETER :: VERGRD = '2026-10-13'
     CHARACTER(LEN=35), PARAMETER :: IDSTR = 'WAVEWATCH III ST4 TABLE FOR STRESS '
     CHARACTER(LEN=10)       :: VERTST=' '
     CHARACTER(LEN=35)       :: IDTST=' '
@@ -1721,7 +1743,7 @@ CONTAINS
     END IF
     !
     USTARM = 5.
-    ALPHAM = 20.*AALPHA
+    ALPHAM = ALPHAMFAC*AALPHA
     LEVTAILM = 0.05
     DELUST  = USTARM/REAL(IUSTAR)
     DELALP  = ALPHAM/REAL(IALPHA)
@@ -1978,6 +2000,32 @@ CONTAINS
     RETURN
   END SUBROUTINE CALC_USTAR
   !/ ------------------------------------------------------------------- /
+  !> @brief physics_revamp_v1: background Charnock alpha_B(u*) from the ABUST/ABVAL table (piecewise linear,
+  !>        constant outside) and its slope d ln alpha_B / d ln u* for the Newton iteration in TABU_STRESS.
+  SUBROUTINE ALPHAB_TAB(UST, ALPB, SLP)
+    IMPLICIT NONE
+    REAL, INTENT(IN)  :: UST
+    REAL, INTENT(OUT) :: ALPB, SLP
+    INTEGER :: I
+    REAL    :: W
+    IF (UST.LE.ABUST(1)) THEN
+      ALPB = ABVAL(1)
+      SLP = 0.
+      RETURN
+    END IF
+    IF (UST.GE.ABUST(NABTAB)) THEN
+      ALPB = ABVAL(NABTAB)
+      SLP = 0.
+      RETURN
+    END IF
+    DO I=2, NABTAB
+      IF (UST.LT.ABUST(I)) EXIT
+    END DO
+    W = (UST-ABUST(I-1))/(ABUST(I)-ABUST(I-1))
+    ALPB = ABVAL(I-1) + W*(ABVAL(I)-ABVAL(I-1))
+    SLP = UST/ALPB*(ABVAL(I)-ABVAL(I-1))/(ABUST(I)-ABUST(I-1))
+  END SUBROUTINE ALPHAB_TAB
+  !/ ------------------------------------------------------------------- /
 
   !>
   !> @brief Calculate whitecapping source term and diagonal term of derivative.
@@ -2092,7 +2140,7 @@ CONTAINS
          SSDSISO, SSDSDTH, SSDSBM, AAIRCMIN,        &
          SSDSBRFDF, SSDSBCK, IKTAB, DCKI,           &
          SATINDICES, SATWEIGHTS, CUMULW, NKHS, NKD, &
-         NDTAB, QBI, DSIP, SSDSBRF1,XFR
+         NDTAB, QBI, DSIP, SSDSBRF1,XFR, DSII
 #ifdef W3_IG1
     USE W3GDATMD, ONLY: IGPARS
 #endif
@@ -2158,6 +2206,10 @@ CONTAINS
     REAL                    :: TSTR, TMAX, DT, T, MFT, DIRFORCUM
     REAL                    :: PB(NSPEC), PB2(NSPEC), BRM12(NK), BTOVER
     REAL                    :: KO, LMODULATION(NTH)
+    ! physics_revamp_v1 tail ramp (TL*) and peak window (WW*), see below
+    REAL, PARAMETER         :: TLF = 3.7, TLA = 1.2, TLB = 3.0, TLC = 1.2
+    REAL, PARAMETER         :: WWF = 0.35, WWX(4) = (/ 0.8, 0.95, 1.8, 2.4 /)
+    REAL                    :: TLE(NK), TLW, TLSIGP, TLX, TLR, WWXK, WWW
     !/
     !/ ------------------------------------------------------------------- /
     !/
@@ -2287,6 +2339,51 @@ CONTAINS
         DDIAG((IK-1)*NTH+1:IK*NTH) = SDIAGISO + &
              COEF2*((MAX(0.,BTH((IK-1)*NTH+1:IK*NTH)-COEF1))**SSDSP)
       END DO
+      !
+      ! physics_revamp_v1 tail ramp: saturation dissipation x R(f/fp_ws), R = 1 below TLA, TLF above TLB, ln R linear
+      ! in ln(f/fp_ws) between. Gives the level and slope of the observed (Spotter) tail, which the default ST4
+      ! overestimates by ~20%. fp_ws: fourth-power-weighted mean frequency of the wind-sea part of the 1-D spectrum
+      ! (c / U10 < TLC; full spectrum if U10 = 0), so that swell does not set the ramp.
+      TLSIGP = -1.
+      DO IK=1, NK
+        TLE(IK) = SUM(A((IK-1)*NTH+1:IK*NTH)) * SIG(IK) / CG(IK)
+        IF (U10SDS .GT. 0.) THEN
+          IF (SIG(IK) / K(IK) .GE. TLC * U10SDS) TLE(IK) = 0.
+        END IF
+      END DO
+      TLW = SUM(TLE**4 * DSII(1:NK))
+      IF (TLW .GT. 0.) TLSIGP = SUM(SIG(1:NK) * TLE**4 * DSII(1:NK)) / TLW
+      IF (TLSIGP .GE. 0.) THEN
+        DO IK=IK1, NK
+          TLX = SIG(IK) / TLSIGP
+          IF (TLX .LE. TLA) THEN
+            TLR = 1.
+          ELSE IF (TLX .GE. TLB) THEN
+            TLR = TLF
+          ELSE
+            TLR = EXP(LOG(TLF) * LOG(TLX / TLA) / LOG(TLB / TLA))
+          END IF
+          DDIAG((IK-1)*NTH+1:IK*NTH) = TLR * DDIAG((IK-1)*NTH+1:IK*NTH)
+        END DO
+      END IF
+      ! physics_revamp_v1 peak window: saturation dissipation x (1 - (1 - WWF) W(c / U10)), W cosine-tapered, 0 below
+      ! WWX(1), 1 on [WWX(2), WWX(3)], 0 above WWX(4). Less breaking at and below the peak of mature seas, which
+      ! were too low in energy there, without changing growth or the tail. Wind-scaled, so no peak detection.
+      IF (U10SDS .GT. 0.) THEN
+        DO IK=IK1, NK
+          WWXK = SIG(IK) / K(IK) / U10SDS
+          IF (WWXK .LE. WWX(1) .OR. WWXK .GE. WWX(4)) THEN
+            WWW = 0.
+          ELSE IF (WWXK .LT. WWX(2)) THEN
+            WWW = 0.5 * (1. - COS(PI * (WWXK - WWX(1)) / (WWX(2) - WWX(1))))
+          ELSE IF (WWXK .LE. WWX(3)) THEN
+            WWW = 1.
+          ELSE
+            WWW = 0.5 * (1. + COS(PI * (WWXK - WWX(3)) / (WWX(4) - WWX(3))))
+          END IF
+          DDIAG((IK-1)*NTH+1:IK*NTH) = (1. - (1. - WWF) * WWW) * DDIAG((IK-1)*NTH+1:IK*NTH)
+        END DO
+      END IF
       !
       ! Computes Breaking probability
       !

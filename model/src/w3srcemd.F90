@@ -697,6 +697,10 @@ CONTAINS
          MWXFINISH, MWYFINISH, A1BAND, B1BAND,     &
          COSI(2)
     REAL :: SPECINIT(NSPEC), SPEC2(NSPEC), FRLOCAL, JAC2
+    ! physics_revamp_v1 directional diffusion (see end of the integration loop)
+    REAL, PARAMETER :: DDK = 7.5E-7
+    INTEGER :: NDD, IDD, ITHM, ITHP
+    REAL :: DDR, DDROW(NTH)
     REAL :: DAM (NSPEC), DAM2(NSPEC), WN2(NSPEC),  &
          VSLN(NSPEC),                         &
          VSIN(NSPEC), VDIN(NSPEC),            &
@@ -1938,6 +1942,32 @@ CONTAINS
       ENDIF
 
     END DO ! INTEGRATION LOOP
+    !
+    ! physics_revamp_v1: directional diffusion of the action density by unresolved (submesoscale) currents, Smit and
+    ! Janssen (2019, JPO 49, eq. 38): dN/dt = D_tt d2N/dtheta2, D_tt = DDK sigma (eq. 29). Without it far-field swell
+    ! arrives too narrow in direction (spread ~half of Spotter); it also smooths the garden-sprinkler effect.
+    ! DDK 7.5e-7 (e0 ~15) chosen from Spotter arrival spread and Hs scores. Applied once per global step DTG,
+    ! explicit, periodic in direction, conserves the action in every frequency; sub-steps keep D_tt dt / dtheta2
+    ! <= 0.25. Direct (explicit) source-term call only.
+    IF (srce_call .EQ. srce_direct) THEN
+      DO IK=1, NK
+        DDR = DDK * SIG(IK) * DTG / (TPI/REAL(NTH))**2
+        NDD = MAX(1, CEILING(DDR/0.25))
+        DDR = DDR / REAL(NDD)
+        DO IDD=1, NDD
+          DO ITH=1, NTH
+            DDROW(ITH) = SPEC(ITH+(IK-1)*NTH)
+          END DO
+          DO ITH=1, NTH
+            ITHM = ITH - 1
+            IF (ITHM .LT. 1) ITHM = NTH
+            ITHP = ITH + 1
+            IF (ITHP .GT. NTH) ITHP = 1
+            SPEC(ITH+(IK-1)*NTH) = DDROW(ITH) + DDR * (DDROW(ITHP) - 2.*DDROW(ITH) + DDROW(ITHM))
+          END DO
+        END DO
+      END DO
+    END IF
 
 #ifdef W3_DEBUGSRC
     IF (IX .eq. DEBUG_NODE) THEN
