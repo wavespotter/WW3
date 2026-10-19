@@ -574,9 +574,6 @@ CONTAINS
     !
     !/ ------------------------------------------------------------------- /
     USE W3GDATMD, ONLY: NX, NY, NSEA, MAPSF
-#ifdef W3_WCOR
-    USE W3GDATMD, ONLY:   WWCOR
-#endif
 #ifdef W3_RWND
     USE W3GDATMD, ONLY:   RWINDC
 #endif
@@ -614,6 +611,10 @@ CONTAINS
     REAL                    :: STAB0, STAB, THARG1, THARG2, COR1, COR2
 #endif
     REAL                    :: UDARC
+    ! physics_revamp_v2 stability correction (section 3.b): nodes WCU (m/s) and amplitudes WCC of WCA(U)
+    REAL, PARAMETER         :: WCU(5) = (/ 13., 17., 21., 25., 28. /), WCC(5) = (/ 0., 0.025, 0.050, 0.050, 0. /)
+    REAL                    :: WCA, WCS
+    INTEGER                 :: IWC
     !/
     !/ ------------------------------------------------------------------- /
     !/
@@ -727,10 +728,24 @@ CONTAINS
     !$OMP END PARALLEL DO
 #endif
     !
-    ! 3.b  Bias correction ( !/WCOR )
-#ifdef W3_WCOR
-    WHERE ( UA .GE. WWCOR(1) ) UA = UA+(UA-WWCOR(1))*WWCOR(2)
-#endif
+    ! 3.b  physics_revamp_v2: stability correction of the neutral wind with the air-sea temperature difference AS (K),
+    !      replacing WCOR (WCOR1 / WCOR2 in ww3_grid.inp are ignored). In stable air at high wind, ECMWF U10N is lower
+    !      than ASCAT relative to neutral air at the same U10 (May-Oct 2026, 16.2M pairs; ww3-hindcast-lab H017 / H026).
+    !      UA x (1 + WCA(UA) WCS(AS)): WCA 0 at 13, 0.025 at 17, 0.05 on 21-25, 0 at 28 m/s (linear, 0 outside);
+    !      WCS 0 at AS <= 0.25, 1 on [1, 2], 0 at AS >= 3.5 K (linear). No correction in unstable air, nor where AS is
+    !      missing (NaN or fill values on land and ice) or absent (forcing without AS: AS = 0).
+    DO ISEA=1, NSEA
+      IF (ABS(AS(ISEA)) .LT. 50.) THEN
+        WCS = MAX(0., MIN(1., (AS(ISEA)-0.25)/0.75)) * MAX(0., MIN(1., (3.5-AS(ISEA))/1.5))
+        IF (WCS .GT. 0. .AND. UA(ISEA) .GT. WCU(1) .AND. UA(ISEA) .LT. WCU(5)) THEN
+          DO IWC = 2, 5
+            IF (UA(ISEA) .LE. WCU(IWC)) EXIT
+          END DO
+          WCA = WCC(IWC-1) + (WCC(IWC)-WCC(IWC-1)) * (UA(ISEA)-WCU(IWC-1)) / (WCU(IWC)-WCU(IWC-1))
+          UA(ISEA) = UA(ISEA) * (1. + WCA*WCS)
+        END IF
+      END IF
+    END DO
 
     !
     ! 4.  Correct for currents and grid motion
