@@ -697,6 +697,10 @@ CONTAINS
          MWXFINISH, MWYFINISH, A1BAND, B1BAND,     &
          COSI(2)
     REAL :: SPECINIT(NSPEC), SPEC2(NSPEC), FRLOCAL, JAC2
+    ! physics_revamp_v2 directional diffusion (see end of the integration loop)
+    REAL, PARAMETER :: DDK = 7.5E-7
+    INTEGER :: NDD, IDD, ITHM, ITHP
+    REAL :: DDR, DDROW(NTH)
     REAL :: DAM (NSPEC), DAM2(NSPEC), WN2(NSPEC),  &
          VSLN(NSPEC),                         &
          VSIN(NSPEC), VDIN(NSPEC),            &
@@ -806,6 +810,11 @@ CONTAINS
 #ifdef W3_ST4
     REAL :: FMEANS, FH1, FH2, FAGE, DLWMEAN
     REAL :: BRLAMBDA(NSPEC)
+    ! physics_revamp_v2: u* / tau_w iteration (see section 1)
+    INTEGER, PARAMETER :: UITN = 5
+    REAL, PARAMETER    :: UITTOL = 0.02
+    INTEGER            :: IUIT
+    REAL               :: UITOLD
 #endif
 
 #if defined(W3_ST3) || defined(W3_ST4)
@@ -1034,6 +1043,12 @@ CONTAINS
     TWS = 1./FMEANWS
 #endif
 #ifdef W3_ST4
+    ! physics_revamp_v2: initialise LLWS (wind sea where U10 cos(theta - U10DIR) / c > 1) before the first W3SPR4; with
+    ! TAUWBUG = 0 the W3SIN4 call below is skipped and LLWS was undefined there
+    DO IS = 1, NSPEC
+      LLWS(IS) = U10ABS * (ECOS(IS)*COS(U10DIR) + ESIN(IS)*SIN(U10DIR)) * WN1((IS-1)/NTH+1) &
+           / SIG((IS-1)/NTH+1) .GT. 1.
+    END DO
     IF (SINTAILPAR(4).GT.0.5) THEN ! this is designed to keep the bug as an option
       TAUWX=0.
       TAUWY=0.
@@ -1091,6 +1106,22 @@ CONTAINS
 #endif
          USTAR, USTDIR,                                &
          TAUWX, TAUWY, CD, Z0, CHARN, LLWS, FMEANWS, DLWMEAN)
+    ! physics_revamp_v2: repeat the W3SIN4 (tau_w) / W3SPR4 (u*) pair up to UITN times until |delta u*| / u* < UITTOL,
+    ! so that u* and tau_w are consistent at the start of the step (with TAUWBUG = 0, tau_w is from the previous step)
+    DO IUIT = 1, UITN
+      UITOLD = USTAR
+      CALL W3SIN4 ( SPEC, CG1, WN2, U10ABS, USTAR, DRAT, AS,       &
+           U10DIR, Z0, CD, TAUWX, TAUWY, TAUWAX, TAUWAY,       &
+           VSIN, VDIN, LLWS, IX, IY, BRLAMBDA )
+      CALL W3SPR4 (SPEC, CG1, WN1, EMEAN, FMEAN, FMEAN1, WNMEAN, &
+           AMAX, U10ABS, U10DIR,                         &
+#ifdef W3_FLX5
+           TAUA, TAUADIR, DAIR,                    &
+#endif
+           USTAR, USTDIR,                                &
+           TAUWX, TAUWY, CD, Z0, CHARN, LLWS, FMEANWS, DLWMEAN)
+      IF (ABS(USTAR - UITOLD) / MAX(USTAR, 1.E-4) .LT. UITTOL) EXIT
+    END DO
     TWS = 1./FMEANWS
 #endif
 #ifdef W3_ST6
@@ -1834,7 +1865,9 @@ CONTAINS
 #ifdef W3_ST4
       ! Introduces a Long & Resio (JGR2007) type dependance on wave age
       FAGE   = FFXFA*TANH(0.3*U10ABS*FMEANWS*TPI/GRAV)
-      FH1    = (FFXFM+FAGE) * FMEAN1
+      ! physics_revamp_v2: tail-imposition cutoff also from the wind-sea mean frequency, as section 1.e. Under swell
+      ! FMEAN1 is low, so with FMEAN1 alone the f^-5 tail could be imposed within the wind sea.
+      FH1    = (FFXFM+FAGE) * MAX(FMEAN1, FMEANWS)
       FH2    = FFXPM / USTAR
       FHIGH  = MIN ( SIG(NK) , MAX ( FH1 , FH2 ) )
       NKH    = MAX ( 2 , MIN ( NKH1 ,                           &
@@ -1938,6 +1971,32 @@ CONTAINS
       ENDIF
 
     END DO ! INTEGRATION LOOP
+    !
+    ! physics_revamp_v2: directional diffusion of the action density by unresolved (submesoscale) currents, Smit and
+    ! Janssen (2019, JPO 49, eq. 38): dN/dt = D_tt d2N/dtheta2, D_tt = DDK sigma (eq. 29). Without it far-field swell
+    ! arrives too narrow in direction (spread ~half of Spotter); it also smooths the garden-sprinkler effect.
+    ! DDK 7.5e-7 (e0 ~15) chosen from Spotter arrival spread and Hs scores. Applied once per global step DTG,
+    ! explicit, periodic in direction, conserves the action in every frequency; sub-steps keep D_tt dt / dtheta2
+    ! <= 0.25. Direct (explicit) source-term call only.
+    IF (srce_call .EQ. srce_direct) THEN
+      DO IK=1, NK
+        DDR = DDK * SIG(IK) * DTG / (TPI/REAL(NTH))**2
+        NDD = MAX(1, CEILING(DDR/0.25))
+        DDR = DDR / REAL(NDD)
+        DO IDD=1, NDD
+          DO ITH=1, NTH
+            DDROW(ITH) = SPEC(ITH+(IK-1)*NTH)
+          END DO
+          DO ITH=1, NTH
+            ITHM = ITH - 1
+            IF (ITHM .LT. 1) ITHM = NTH
+            ITHP = ITH + 1
+            IF (ITHP .GT. NTH) ITHP = 1
+            SPEC(ITH+(IK-1)*NTH) = DDROW(ITH) + DDR * (DDROW(ITHP) - 2.*DDROW(ITH) + DDROW(ITHM))
+          END DO
+        END DO
+      END DO
+    END IF
 
 #ifdef W3_DEBUGSRC
     IF (IX .eq. DEBUG_NODE) THEN

@@ -562,6 +562,9 @@ CONTAINS
     ! Orphaned arrays from old data structure
     !
     REAL, ALLOCATABLE       :: TAUWX(:), TAUWY(:)
+    ! physics_revamp_v2: tau_w kept across W3WAVE calls (per local sea point; one model grid; not in the restart)
+    INTEGER, SAVE           :: TWKIMOD = -1
+    REAL, ALLOCATABLE, SAVE :: TWKX(:), TWKY(:)
     !
     LOGICAL                 :: FLACT, FLZERO, FLFRST, FLMAP, TSTAMP,&
          SKIP_O, FLAG_O, FLDDIR, READBC,      &
@@ -704,6 +707,14 @@ CONTAINS
     !
     TAUWX  = 0.
     TAUWY  = 0.
+    ! physics_revamp_v2: restore tau_w from the previous W3WAVE call (zero at the first call). The stock reset at every
+    ! W3WAVE call gave u* without wave-supported stress at the start of each call.
+    IF (ALLOCATED(TWKX) .AND. TWKIMOD .EQ. IMOD) THEN
+      IF (SIZE(TWKX) .EQ. NSEAL) THEN
+        TAUWX = TWKX
+        TAUWY = TWKY
+      END IF
+    END IF
     !
     ! 0.d Test output
     !
@@ -2813,6 +2824,11 @@ CONTAINS
     IF ( IAPROC .EQ. NAPLOG ) WRITE (NDSO,902)
     !
     DEALLOCATE(FIELD)
+    IF (ALLOCATED(TWKX)) DEALLOCATE(TWKX, TWKY)
+    ALLOCATE(TWKX(NSEAL), TWKY(NSEAL))
+    TWKX = TAUWX
+    TWKY = TAUWY
+    TWKIMOD = IMOD
     DEALLOCATE(TAUWX, TAUWY)
     !
     call print_memcheck(memunit, 'memcheck_____:'//' WW3_WAVE END W3WAVE')
