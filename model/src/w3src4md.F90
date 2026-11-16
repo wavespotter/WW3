@@ -99,6 +99,24 @@ MODULE W3SRC4MD
   REAL,    PARAMETER      :: UMAX    = 50.
   REAL,    PARAMETER      :: TAUWMAX = 2.2361 !SQRT(5.)
   INTEGER                 :: DIKCUMUL
+  ! physics_revamp_v2 drag closure: background Charnock alpha_B(u*) (piecewise linear in u*, constant outside the
+  ! table) replaces the constant ALPHA0 in TABU_STRESS, so that the total drag follows COARE 3.5 at mature sea
+  ! states (fitted with this physics in the point lab). ALPHAMFAC widens the Charnock range of the tail tables
+  ! (default 20) to cover it.
+  INTEGER, PARAMETER      :: NABTAB = 17
+  REAL,    PARAMETER      :: ABUST(NABTAB) = (/ 0.1201, 0.1519, 0.1874, 0.2268, 0.2695, 0.3635, 0.4674, &
+                             0.5808, 0.7038, 0.8366, 0.9068, 0.9796, 1.1334, 1.2986, 1.4761, 1.5697, 1.6668 /)
+  REAL,    PARAMETER      :: ABVAL(NABTAB) = (/ 0.00826, 0.00557, 0.00486, 0.00458, 0.00528, 0.00520, 0.00561, &
+                             0.00568, 0.00608, 0.00680, 0.00722, 0.00785, 0.00976, 0.01143, 0.01220, 0.01278, 0.01242 /)
+  REAL,    PARAMETER      :: ALPHAMFAC = 60.
+  ! physics_revamp_v2: the beyond-grid tail-stress integrals (TABU_TAUHF, TABU_TAUHF2, SINTABLE 0) end at k = KCUT
+  ! (rad/m) instead of 1/z0. With the sheltered tail (TABU_TAUHF2), integrating to 1/z0 put too much stress in the
+  ! unresolved tail: drag 10-17% above COARE at U10 8-10 m/s (point-lab E081b/d). The grid must end below KCUT.
+  REAL,    PARAMETER      :: KCUT = 185.
+  ! physics_revamp_v2: U10 passed from W3SIN4 to W3SDS4 (W3SRCE calls W3SIN4 first for the same point)
+  REAL                    :: U10SDS = 0.
+  ! physics_revamp_v2: W3SIN4's wind-sea mask LLWS passed to W3SDS4 (tail ramp), same order as U10SDS
+  LOGICAL, ALLOCATABLE    :: LLWSSDS(:)
   !  Size of wave height table for integrating the PDF of wave heights
   INTEGER,    PARAMETER      :: NKHI=100, FAC_KD2=1000
   REAL,    PARAMETER      :: FAC_KD1=1.01, KHSMAX=2., KHMAX=2.
@@ -550,8 +568,6 @@ CONTAINS
     REAL                    :: COSU, SINU, TAUX, TAUY, USDIRP, USTP
     REAL                    :: TAUPX, TAUPY, UST2, TAUW, TAUWB
     REAL   , PARAMETER      :: EPS1 = 0.00001, EPS2 = 0.000001
-    REAL                    :: Usigma           !standard deviation of U due to gustiness
-    REAL                    :: USTARsigma       !standard deviation of USTAR due to gustiness
     REAL                    :: CM,UCN,ZCN, &
          Z0VISC, Z0NOZ, EB,  &
          EBX, EBY, AORB, AORB1, FW, UORB, TH2, &
@@ -567,6 +583,8 @@ CONTAINS
     INTEGER IND,J,I,ISTAB
     REAL DSTAB(3,NSPEC), DVISC, DTURB
     REAL STRESSSTAB(3,2),STRESSSTABN(3,2)
+    ! physics_revamp_v2: u* coefficient of the turbulent swell damping, against the wind only (see DTURB)
+    REAL, PARAMETER         :: FUOPP = 0.03636
     !
     INTEGER, PARAMETER      :: JTOT=50
     REAL   , PARAMETER      :: KM=363.,CMM=0.2325  ! K and C at phase speed minimum in rad/m
@@ -597,6 +615,7 @@ CONTAINS
     DSTAB =0.
     STRESSSTAB =0.
     STRESSSTABN =0.
+    U10SDS = U
     !
     ! Coupling coefficient times density ratio DRAT
     !
@@ -673,29 +692,11 @@ CONTAINS
     !
     ! 2.  Diagonal
     !
-    ! Here AS is the air-sea temperature difference in degrees. Expression given by
-    ! Abdalla & Cavaleri, JGR 2002 for Usigma. For USTARsigma ... I do not see where
-    ! I got it from, maybe just made up from drag law ...
-    !
-#ifdef W3_STAB3
-    IF ( ISNAN(AS) ) THEN
-      ! AS is typically NaN on land and can propagate into the domain by interpolation
-      Usigma = 0.
-    ELSE
-      Usigma = MAX(0.,-0.025*AS)
-    END IF
-    USTARsigma=(0.895+U**(1.48)/(34.8+1.35*U**(1.48)))*Usigma
-#endif
-#ifdef W3_T
-    WRITE (NDST,9003) AS, Usigma, USTARsigma, U
-#endif
+    ! physics_revamp_v2: no gustiness (STAB3 average over u* (1 -+ sigma(AS)) removed, also with the STAB3 switch).
+    ! The air-sea temperature difference acts through the wind correction in W3UWND instead, fitted to ASCAT.
+    ! (STAB3 also took the tail stress from the u* (1 + sigma) pass only.)
     UST=USTAR
     ISTAB=3
-#ifdef W3_STAB3
-    DO ISTAB=1,2
-      IF (ISTAB.EQ.1) UST=USTAR*(1.-USTARsigma)
-      IF (ISTAB.EQ.2) UST=USTAR*(1.+USTARsigma)
-#endif
       TAUX = UST**2* COS(USDIR)
       TAUY = UST**2* SIN(USDIR)
 #ifdef W3_T
@@ -750,7 +751,9 @@ CONTAINS
               ! The source term Sp is beta * omega * X**2
               ! as given by Janssen 1991 eq. 19
               ! Note that this is slightly diffent from ECWAM code CY45R2 where ZLOG is replaced by ??
-              DSTAB(ISTAB,IS) = CONST*EXP(ZLOG)*ZLOG**4*UCN*UCN*COSWIND**SSINTHP
+              ! physics_revamp_v2: Janssen (1991) prefactor uses u*/c; the shifted UCN = u*/c + ZZALP belongs in the
+              ! exponent only (as ECWAM since CY46R1). UCN**2 overestimates the input, relatively most at small u*/c.
+              DSTAB(ISTAB,IS) = CONST*EXP(ZLOG)*ZLOG**4*(USTP*CM)**2*COSWIND**SSINTHP
 
               ! Below is an example with breaking probability feeding back to the input...
               !DSTAB(ISTAB,IS) = CONST*EXP(ZLOG)*ZLOG**4  &
@@ -775,7 +778,9 @@ CONTAINS
                .OR.SSWELLF(3).GT.0) THEN
             !
             DVISC=SWELLCOEFV
-            DTURB=SWELLCOEFT*(FW*UORB+(FU+FUD*COSWIND)*USTP)
+            ! physics_revamp_v2: the u* part of the turbulent swell damping acts only against the wind
+            ! (FUOPP max(0, -cos)); the default FU+FUD cos also damps swell running with or across the wind.
+            DTURB=SWELLCOEFT*(FW*UORB+FUOPP*MAX(0.,-COSWIND)*USTP)
             !
             DSTAB(ISTAB,IS) = DSTAB(ISTAB,IS) + PTURB*DTURB +  PVISC*DVISC
           END IF
@@ -800,18 +805,16 @@ CONTAINS
       YSTRESS=STRESSSTAB (3,2)
       TAUWNX =STRESSSTABN(3,1)
       TAUWNY =STRESSSTABN(3,2)
-#ifdef W3_STAB3
-    END DO
-    D(:)=0.5*(DSTAB(1,:)+DSTAB(2,:))
-    XSTRESS=0.5*(STRESSSTAB(1,1)+STRESSSTAB(2,1))
-    YSTRESS=0.5*(STRESSSTAB(1,2)+STRESSSTAB(2,2))
-    TAUWNX=0.5*(STRESSSTABN(1,1)+STRESSSTABN(2,1))
-    TAUWNY=0.5*(STRESSSTABN(1,2)+STRESSSTABN(2,2))
-#endif
 #ifdef W3_T
     WRITE (NDST,9002) SUM(D), SUM(A), XSTRESS, YSTRESS, TAUWNX, TAUWNY
 #endif
     S = D * A
+    ! physics_revamp_v2: wind-sea mask for the tail ramp in W3SDS4
+    IF (ALLOCATED(LLWSSDS)) THEN
+      IF (SIZE(LLWSSDS) .NE. NSPEC) DEALLOCATE(LLWSSDS)
+    END IF
+    IF (.NOT. ALLOCATED(LLWSSDS)) ALLOCATE(LLWSSDS(NSPEC))
+    LLWSSDS = LLWS
     !
     ! ... Test output of arrays
     !
@@ -873,7 +876,8 @@ CONTAINS
       !ZINF      = LOG(YC)
       !DELY     = MAX((1.-ZINF)/REAL(JTOT),0.)
       ZINF = LOG(SIG(NK)**2/GRAV)
-      DELY = (LOG(TPI/0.005)-ZINF)/REAL(JTOT)
+      ! physics_revamp_v2: tail integral ends at MIN(2 pi / 0.005, KCUT) (see KCUT)
+      DELY = (LOG(MIN(TPI/0.005, KCUT))-ZINF)/REAL(JTOT)
 
       TAUR=UST**2
       TAU1=0.
@@ -922,7 +926,8 @@ CONTAINS
         ! NB: the factor ABS(TTAUWSHELTER) was forgotten in the TAUHFT2 table
         !TAUR=TAUR-W(J)*ABS(TTAUWSHELTER)*USTR**2*ZBETA*LEVTAIL/Y*DELY
         !TAUR=TAUR-W(J)*USTR**2*ZBETA*LEVTAIL*DELY    ! integration over LOG(Y)
-        TAUR=TAUR-W(J)*SINTAILPAR(2)*USTR**2*ZBETA*LEVTAIL*DELY*CGTAIL/CM   ! DK/K*CG/C = D OMEGA / OMEGA
+        ! physics_revamp_v2: tail sheltered with ABS(TTAUWSHELTER) as the resolved spectrum (was SINTAILPAR(2))
+        TAUR=TAUR-W(J)*ABS(TTAUWSHELTER)*USTR**2*ZBETA*LEVTAIL*DELY*CGTAIL/CM   ! DK/K*CG/C = D OMEGA / OMEGA
         USTR=SQRT(MAX(TAUR,0.))
       END DO
       DEALLOCATE(W)
@@ -1113,6 +1118,11 @@ CONTAINS
     !
     ! These precomputed tables are written in mod_def.ww3
     !
+    ! physics_revamp_v2: the tail cut KCUT assumes the prognostic grid ends below it (the input there is not cut)
+    IF (SIG(NK)**2/GRAV .GT. KCUT) THEN
+      WRITE (NDSE,*) 'INSIN4: prognostic grid extends beyond KCUT', SIG(NK)**2/GRAV, KCUT
+      CALL EXTCDE (73)
+    END IF
     IF (SINTAILPAR(1).GT.0.5) THEN
       IF (.NOT. ALLOCATED(TAUT)) ALLOCATE(TAUT(0:ITAUMAX,0:JUMAX))
       IF (.NOT. ALLOCATED(TAUHFT)) ALLOCATE(TAUHFT(0:IUSTAR,0:IALPHA))
@@ -1367,6 +1377,7 @@ CONTAINS
     INTEGER I,J,ITER
     REAL ZTAUW,UTOP,CDRAG,WCD,USTOLD,TAUOLD
     REAL X,UST,ZZ0,F,DELF,ZZ00
+    REAL ALPB,SLP
     !
     !
     DELU    = UMAX/FLOAT(JUMAX)
@@ -1379,18 +1390,19 @@ CONTAINS
         WCD     = SQRT(CDRAG)
         USTOLD  = UTOP*WCD
         TAUOLD  = MAX(USTOLD**2, ZTAUW+EPS1)
-        DO ITER=1,NITER
+        ! physics_revamp_v2: background Charnock alpha_B(u*) from the table instead of AALPHA. Newton step
+        ! includes d ln alpha_B / d ln u*; 60 iterations (as used in the fit, instead of NITER).
+        DO ITER=1,60
           X   = ZTAUW/TAUOLD
           UST = SQRT(TAUOLD)
-          ZZ00=AALPHA*TAUOLD/GRAV
+          CALL ALPHAB_TAB(UST, ALPB, SLP)
+          ZZ00=ALPB*TAUOLD/GRAV
           IF (ZZ0MAX.NE.0) ZZ00=MIN(ZZ00,ZZ0MAX)
           ! Corrects roughness ZZ00 for quasi-linear effect
           ZZ0 = ZZ00/(1.-X)**XM
-          !ZNU = 0.1*nu_air/UST  ! This was removed by Bidlot in 1996
-          !ZZ0 = MAX(ZNU,ZZ0)
           F   = UST-KAPPA*UTOP/(ALOG(ZZWND/ZZ0))
-          DELF= 1.-KAPPA*UTOP/(ALOG(ZZWND/ZZ0))**2*2./UST &
-               *(1.-(XM+1)*X)/(1.-X)
+          DELF= 1.-KAPPA*UTOP/(ALOG(ZZWND/ZZ0))**2/UST &
+               *(2.*(1.-(XM+1.)*X)/(1.-X)+SLP)
           UST = UST-F/DELF
           TAUOLD= MAX(UST**2., ZTAUW+EPS1)
         END DO
@@ -1524,7 +1536,7 @@ CONTAINS
 #endif
     !
     USTARM = 5.
-    ALPHAM = 20.*AALPHA
+    ALPHAM = ALPHAMFAC*AALPHA
     DELUST = USTARM/REAL(IUSTAR)
     DELALP = ALPHAM/REAL(IALPHA)
     CONST1 = BBETA/KAPPA**2
@@ -1546,7 +1558,8 @@ CONTAINS
         ZZ0       = ZZ00*(1+FLOAT(L)*DELALP/AALPHA)
         OMEGACC  = MAX(OMEGAC,X0*GRAV/UST)
         YC       = OMEGACC*SQRT(ZZ0/GRAV)
-        DELY     = MAX((1.-YC)/REAL(JTOT),0.)
+        ! physics_revamp_v2: Y = SQRT(k ZZ0) ends at MIN(1, SQRT(KCUT ZZ0)), i.e. k = KCUT instead of 1/ZZ0
+        DELY     = MAX((MIN(1.,SQRT(KCUT*ZZ0))-YC)/REAL(JTOT),0.)
         ! For a given value of UST and ALPHA,
         ! the wave-supported stress is integrated all the way
         ! to 0.05*g/UST
@@ -1694,7 +1707,11 @@ CONTAINS
     INTEGER                 :: INIUSTAR, INIALPHA, INILEVTAIL, IERR
     CHARACTER(160)          :: FNAMETAB
     LOGICAL                 :: NOFILE
-    CHARACTER(LEN=10), PARAMETER :: VERGRD = '2018-06-08'
+    ! physics_revamp_v2: own version tag, and the header also carries TAUWSHELTER, ALPHAMFAC and KCUT (all checked), so
+    ! that a cache built with other tail settings (e.g. by prod) is not reused for these tables
+    CHARACTER(LEN=10), PARAMETER :: VERGRD = 'E081d-kcs '
+    REAL                    :: INTAUWSH, INAMFAC, INKCUT
+    LOGICAL                 :: OPN993
     CHARACTER(LEN=35), PARAMETER :: IDSTR = 'WAVEWATCH III ST4 TABLE FOR STRESS '
     CHARACTER(LEN=10)       :: VERTST=' '
     CHARACTER(LEN=35)       :: IDTST=' '
@@ -1705,12 +1722,16 @@ CONTAINS
     !
     FNAMETAB='ST4TABUHF2.bin'
     NOFILE=.TRUE.
+    INTAUWSH = TTAUWSHELTER
+    INAMFAC = ALPHAMFAC
+    INKCUT = KCUT
     OPEN (993,FILE=FNAMETAB,form='UNFORMATTED', convert=file_endian,IOSTAT=IERR,STATUS='OLD')
     IF (IERR.EQ.0) THEN
       READ(993,IOSTAT=IERR) IDTST, VERTST, INSIGMAX, INAALPHA, INBBETA, INIUSTAR,  &
-           INIALPHA, INILEVTAIL, INZZALP, INKAPPA, INGRAV
+           INIALPHA, INILEVTAIL, INZZALP, INKAPPA, INGRAV, INTAUWSH, INAMFAC, INKCUT
       IF (VERTST.EQ.VERGRD.AND.IDTST.EQ.IDSTR.AND.IERR.EQ.0             &
-           .AND.INSIGMAX.EQ.SIGMAX.AND.INAALPHA.EQ.AALPHA.AND.INBBETA.EQ.BBETA) THEN
+           .AND.INSIGMAX.EQ.SIGMAX.AND.INAALPHA.EQ.AALPHA.AND.INBBETA.EQ.BBETA &
+           .AND.INTAUWSH.EQ.TTAUWSHELTER.AND.INAMFAC.EQ.ALPHAMFAC.AND.INKCUT.EQ.KCUT) THEN
         IF (INIUSTAR.EQ.IUSTAR.AND.INIALPHA.EQ.IALPHA.AND.INILEVTAIL.EQ.ILEVTAIL.AND. &
              INZZALP.EQ.ZZALP.AND.INGRAV.EQ.GRAV.AND.INKAPPA.EQ.KAPPA) THEN
           NOFILE=.FALSE.
@@ -1721,7 +1742,7 @@ CONTAINS
     END IF
     !
     USTARM = 5.
-    ALPHAM = 20.*AALPHA
+    ALPHAM = ALPHAMFAC*AALPHA
     LEVTAILM = 0.05
     DELUST  = USTARM/REAL(IUSTAR)
     DELALP  = ALPHAM/REAL(IALPHA)
@@ -1749,7 +1770,8 @@ CONTAINS
           ZZ0       = UST0**2*(AALPHA+FLOAT(L)*DELALP)/GRAV
           OMEGACC  = MAX(OMEGAC,X0*GRAV/UST)
           YC       = OMEGACC*SQRT(ZZ0/GRAV)
-          DELY     = MAX((1.-YC)/REAL(JTOT),0.)
+          ! physics_revamp_v2: Y = SQRT(k ZZ0) ends at MIN(1, SQRT(KCUT ZZ0)), i.e. k = KCUT instead of 1/ZZ0
+          DELY     = MAX((MIN(1.,SQRT(KCUT*ZZ0))-YC)/REAL(JTOT),0.)
           ! For a given value of UST and ALPHA,
           ! the wave-supported stress is integrated all the way
           ! to 0.05*g/UST
@@ -1779,7 +1801,8 @@ CONTAINS
               ZBETA        = CONST1*ZMU*ZLOG**4
               ! Power of Y in denominator should be FACHFE-4
               TAUHFT2(K,L,I)  = TAUHFT2(K,L,I)+W(J)*ZBETA*(UST/UST0)**2/Y*DELY
-              TAUW=TAUW-W(J)*UST**2*ZBETA*LEVTAIL/Y*DELY
+              ! physics_revamp_v2: tail sheltered with ABS(TTAUWSHELTER) as the resolved spectrum (stock: factor 1)
+              TAUW=TAUW-W(J)*ABS(TTAUWSHELTER)*UST**2*ZBETA*LEVTAIL/Y*DELY
               UST=SQRT(MAX(TAUW,0.))
             END DO
 #ifdef W3_T
@@ -1789,8 +1812,12 @@ CONTAINS
         END DO
       END DO
       DEALLOCATE(W)
+      ! physics_revamp_v2: close a cache left open by a failed header check, so that the rewrite starts at the top of
+      ! the file (stock code appends after the old header)
+      INQUIRE (UNIT=993, OPENED=OPN993)
+      IF (OPN993) CLOSE(993)
       OPEN (993,FILE=FNAMETAB,form='UNFORMATTED', convert=file_endian,IOSTAT=IERR,STATUS='UNKNOWN')
-      WRITE(993) IDSTR, VERGRD, SIGMAX, AALPHA, BBETA, IUSTAR, IALPHA, ILEVTAIL, ZZALP, KAPPA, GRAV
+      WRITE(993) IDSTR, VERGRD, SIGMAX, AALPHA, BBETA, IUSTAR, IALPHA, ILEVTAIL, ZZALP, KAPPA, GRAV, TTAUWSHELTER, ALPHAMFAC, KCUT
       WRITE(993) TAUHFT(0:IUSTAR,0:IALPHA)
       WRITE(993) TAUHFT2
       CLOSE(993)
@@ -1920,7 +1947,9 @@ CONTAINS
 
     !
     IF (SINTAILPAR(1).GT.0.5) THEN
-      TAUW_LOCAL=MAX(MIN(TAUW,TAUWMAX),0.)
+      ! physics_revamp_v2: cap tau_w at TAUWMAX**2 = 5 m2/s2, the end of the table axis (TABU_STRESS tabulates
+      ! sqrt(tau_w) on [0, TAUWMAX]); the stock cap at TAUWMAX (2.236 m2/s2) mixed up the units
+      TAUW_LOCAL=MAX(MIN(TAUW,TAUWMAX**2),0.)
       XI      = SQRT(TAUW_LOCAL)/DELTAUW
       IND     = MIN ( ITAUMAX-1, INT(XI)) ! index for stress table
       DELI1   = MIN(1.,XI - REAL(IND))  !interpolation coefficient for stress table
@@ -1977,6 +2006,32 @@ CONTAINS
     !
     RETURN
   END SUBROUTINE CALC_USTAR
+  !/ ------------------------------------------------------------------- /
+  !> @brief physics_revamp_v2: background Charnock alpha_B(u*) from the ABUST/ABVAL table (piecewise linear,
+  !>        constant outside) and its slope d ln alpha_B / d ln u* for the Newton iteration in TABU_STRESS.
+  SUBROUTINE ALPHAB_TAB(UST, ALPB, SLP)
+    IMPLICIT NONE
+    REAL, INTENT(IN)  :: UST
+    REAL, INTENT(OUT) :: ALPB, SLP
+    INTEGER :: I
+    REAL    :: W
+    IF (UST.LE.ABUST(1)) THEN
+      ALPB = ABVAL(1)
+      SLP = 0.
+      RETURN
+    END IF
+    IF (UST.GE.ABUST(NABTAB)) THEN
+      ALPB = ABVAL(NABTAB)
+      SLP = 0.
+      RETURN
+    END IF
+    DO I=2, NABTAB
+      IF (UST.LT.ABUST(I)) EXIT
+    END DO
+    W = (UST-ABUST(I-1))/(ABUST(I)-ABUST(I-1))
+    ALPB = ABVAL(I-1) + W*(ABVAL(I)-ABVAL(I-1))
+    SLP = UST/ALPB*(ABVAL(I)-ABVAL(I-1))/(ABUST(I)-ABUST(I-1))
+  END SUBROUTINE ALPHAB_TAB
   !/ ------------------------------------------------------------------- /
 
   !>
@@ -2092,11 +2147,13 @@ CONTAINS
          SSDSISO, SSDSDTH, SSDSBM, AAIRCMIN,        &
          SSDSBRFDF, SSDSBCK, IKTAB, DCKI,           &
          SATINDICES, SATWEIGHTS, CUMULW, NKHS, NKD, &
-         NDTAB, QBI, DSIP, SSDSBRF1,XFR
+         NDTAB, QBI, DSIP, SSDSBRF1,XFR, DSII
 #ifdef W3_IG1
     USE W3GDATMD, ONLY: IGPARS
 #endif
     USE W3ODATMD, ONLY: FLOGRD
+    USE W3ODATMD, ONLY: NDSE
+    USE W3SERVMD, ONLY: EXTCDE
 #ifdef W3_S
     USE W3SERVMD, ONLY: STRACE
 #endif
@@ -2158,6 +2215,18 @@ CONTAINS
     REAL                    :: TSTR, TMAX, DT, T, MFT, DIRFORCUM
     REAL                    :: PB(NSPEC), PB2(NSPEC), BRM12(NK), BTOVER
     REAL                    :: KO, LMODULATION(NTH)
+    ! physics_revamp_v2 group-steepness breaking (ST*), tail ramp (TL*) and peak window (WW*), see below
+    REAL, PARAMETER         :: STRHO = 0.52, STMC = 6.5E-4, STCDS = 6.992E-5, STP = 2., STFH = 60.
+    LOGICAL, SAVE           :: STINIT = .FALSE.
+    INTEGER, SAVE           :: NSTK = 0, NSTT = 0, NSTF = 0
+    REAL, SAVE              :: STFWS = 0.
+    REAL, ALLOCATABLE, SAVE :: STW(:,:), STFW(:)
+    INTEGER                 :: IA, IB, IU, IV, JK, JTH2
+    REAL                    :: STDL, STCNT, STXX, STYY, STFLO, STFHI, STX, STR, STDF(NTH)
+    REAL                    :: STB(NTH,NK), STM(NTH,NK)
+    REAL, PARAMETER         :: TLF = 3.8, TLA = 1.2, TLB = 3.0
+    REAL, PARAMETER         :: WWF = 0.25, WWX(4) = (/ 0.8, 0.95, 1.8, 2.4 /)
+    REAL                    :: TLE(NK), TLW, TLSIGP, TLX, TLR, WWXK, WWW
     !/
     !/ ------------------------------------------------------------------- /
     !/
@@ -2262,31 +2331,138 @@ CONTAINS
         !
       END DO !IK=NK
       !
-      !  2.a.2  Computes spontaneous breaking dissipation rate
-      !
-      DO  IK=IK1, NK
-        !
-        !  Correction of saturation level for shallow-water kinematics
-        !
-        IF (SSDSBM(0).EQ.1) THEN
-          MICHE=1.
-        ELSE
-          X=TANH(MIN(K(IK)*DEPTH,10.))
-          ! Correction of saturation threshold for shallow-water kinematics
-          MICHE=(X*(SSDSBM(1)+X*(SSDSBM(2)+X*(SSDSBM(3)+X*SSDSBM(4)))))**2
+      ! physics_revamp_v2: breaking rate from the group steepness replaces the Ardhuin et al. (2010) saturation rate
+      ! (2.a.2). M(k,theta) = sum of B = sigma k^3 A over a disc of radius STRHO in (ln k, theta), i.e. over the wave
+      ! group rather than one spectral bin: rate -STCDS sigma (M/STMC - 1)_+^2, averaged in direction over +-STFH deg
+      ! (breaking crests span a range of directions). Breaking is set by the steepness of wave groups, not of single
+      ! spectral bins (point-lab E054-E071). BTH = M and BTH0 = max over theta (breaking probability, whitecaps).
+      IF (.NOT. STINIT) THEN
+        ! disc weights STW(IA,IB) = overlap fraction (5x5 sub-sampling) x dlnk x dtheta, offsets IA in k, IB in theta
+        STDL = 2. * LOG(XFR)
+        NSTK = CEILING(STRHO / STDL) + 1
+        NSTT = MIN(CEILING(STRHO / DTH) + 1, NTH/2 - 1)
+        ALLOCATE (STW(-NSTK:NSTK, -NSTT:NSTT))
+        DO IA = -NSTK, NSTK
+          DO IB = -NSTT, NSTT
+            STCNT = 0.
+            DO IU = 1, 5
+              DO IV = 1, 5
+                STXX = (REAL(IA) + (REAL(IU) - 3.) / 5.) * STDL
+                STYY = (REAL(IB) + (REAL(IV) - 3.) / 5.) * DTH
+                IF (STXX**2 + STYY**2 .LE. STRHO**2) STCNT = STCNT + 1.
+              END DO
+            END DO
+            STW(IA, IB) = STCNT / 25. * STDL * DTH
+          END DO
+        END DO
+        ! footprint weights STFW(IB) = overlap of bin IB with [-STFH, STFH], in units of DTH
+        NSTF = MAX(0, CEILING(STFH / RADE / DTH - 0.5 - 1.E-4))
+        IF (2 * NSTF + 1 .GT. NTH) THEN
+          WRITE (NDSE,'(A)') ' *** WAVEWATCH III ERROR IN W3SDS4: breaking footprint wider than the direction circle'
+          CALL EXTCDE (73)
         END IF
-        COEF1=(SSDSBR*MICHE)
-        !
-        !  Computes isotropic part
-        !
-        SDIAGISO = SSDSC(2) * SIG(IK)*SSDSC(6)*(MAX(0.,BTH0(IK)/COEF1-1.))**2
-        !
-        !  Computes anisotropic part and sums isotropic part
-        !
-        COEF2=SSDSC(2) * SIG(IK)*(1-SSDSC(6))/(COEF1*COEF1)
-        DDIAG((IK-1)*NTH+1:IK*NTH) = SDIAGISO + &
-             COEF2*((MAX(0.,BTH((IK-1)*NTH+1:IK*NTH)-COEF1))**SSDSP)
+        ALLOCATE (STFW(-NSTF:NSTF))
+        STFWS = 0.
+        DO IB = -NSTF, NSTF
+          STFLO = MAX((REAL(IB) - 0.5) * DTH, -STFH / RADE)
+          STFHI = MIN((REAL(IB) + 0.5) * DTH, STFH / RADE)
+          STFW(IB) = MAX(STFHI - STFLO, 0.) / DTH
+          STFWS = STFWS + STFW(IB)
+        END DO
+        STINIT = .TRUE.
+      END IF
+      DO IK = 1, NK
+        DO ITH = 1, NTH
+          STB(ITH, IK) = SIG(IK) * K(IK)**3 * A(ITH + (IK-1)*NTH)
+        END DO
       END DO
+      STM = 0.
+      DO IK = IK1, NK
+        DO ITH = 1, NTH
+          STX = 0.
+          DO IA = -NSTK, NSTK
+            JK = IK + IA
+            IF (JK .LT. IK1 .OR. JK .GT. NK) CYCLE
+            DO IB = -NSTT, NSTT
+              IF (STW(IA, IB) .LE. 0.) CYCLE
+              JTH2 = 1 + MODULO(ITH - 1 + IB, NTH)
+              STX = STX + STW(IA, IB) * STB(JTH2, JK)
+            END DO
+          END DO
+          STM(ITH, IK) = STX
+        END DO
+      END DO
+      DO IK = IK1, NK
+        DO ITH = 1, NTH
+          IS = ITH + (IK-1)*NTH
+          STX = STM(ITH, IK) / STMC
+          IF (STX .LE. 1.) THEN
+            STR = 0.
+          ELSE
+            STR = MAX(STX - 1., 0.)**STP
+          END IF
+          DDIAG(IS) = -STCDS * SIG(IK) * STR
+          BTH(IS) = STM(ITH, IK)
+        END DO
+        ! directional footprint, skipped where the rate is 0 at all theta
+        IS0 = (IK-1)*NTH
+        IF (MINVAL(DDIAG(IS0+1:IS0+NTH)) .LT. 0.) THEN
+          STDF = DDIAG(IS0+1:IS0+NTH)
+          DO ITH = 1, NTH
+            STX = 0.
+            DO IB = -NSTF, NSTF
+              STX = STX + STFW(IB) * STDF(1 + MODULO(ITH - 1 + IB, NTH))
+            END DO
+            DDIAG(IS0 + ITH) = STX / STFWS
+          END DO
+        END IF
+        BTH0(IK) = MAXVAL(STM(:, IK))
+      END DO
+      !
+      ! physics_revamp_v2 tail ramp: dissipation x R(f/fp_ws), R = 1 below TLA, TLF above TLB, ln R linear in ln(f/fp_ws)
+      ! between. Gives the level and slope of the observed (Spotter) tail. fp_ws: fourth-power-weighted mean frequency of
+      ! the wind-sea part of the 1-D spectrum, taken from W3SIN4's wind-sea mask LLWS (as FMEANWS in W3SPR4), so that
+      ! swell does not set the ramp. No mask yet or no wind-sea energy: no ramp.
+      TLSIGP = -1.
+      TLE = 0.
+      IF (ALLOCATED(LLWSSDS)) THEN
+        DO IK=1, NK
+          TLE(IK) = SUM(A((IK-1)*NTH+1:IK*NTH), MASK=LLWSSDS((IK-1)*NTH+1:IK*NTH)) * SIG(IK) / CG(IK)
+        END DO
+      END IF
+      TLW = SUM(TLE**4 * DSII(1:NK))
+      IF (TLW .GT. 0.) TLSIGP = SUM(SIG(1:NK) * TLE**4 * DSII(1:NK)) / TLW
+      IF (TLSIGP .GE. 0.) THEN
+        DO IK=IK1, NK
+          TLX = SIG(IK) / TLSIGP
+          IF (TLX .LE. TLA) THEN
+            TLR = 1.
+          ELSE IF (TLX .GE. TLB) THEN
+            TLR = TLF
+          ELSE
+            TLR = EXP(LOG(TLF) * LOG(TLX / TLA) / LOG(TLB / TLA))
+          END IF
+          DDIAG((IK-1)*NTH+1:IK*NTH) = TLR * DDIAG((IK-1)*NTH+1:IK*NTH)
+        END DO
+      END IF
+      ! physics_revamp_v2 peak window: dissipation x (1 - (1 - WWF) W(c / U10)), W cosine-tapered, 0 below
+      ! WWX(1), 1 on [WWX(2), WWX(3)], 0 above WWX(4). Less breaking at and below the peak of mature seas, which
+      ! were too low in energy there, without changing growth or the tail. Wind-scaled, so no peak detection.
+      IF (U10SDS .GT. 0.) THEN
+        DO IK=IK1, NK
+          WWXK = SIG(IK) / K(IK) / U10SDS
+          IF (WWXK .LE. WWX(1) .OR. WWXK .GE. WWX(4)) THEN
+            WWW = 0.
+          ELSE IF (WWXK .LT. WWX(2)) THEN
+            WWW = 0.5 * (1. - COS(PI * (WWXK - WWX(1)) / (WWX(2) - WWX(1))))
+          ELSE IF (WWXK .LE. WWX(3)) THEN
+            WWW = 1.
+          ELSE
+            WWW = 0.5 * (1. + COS(PI * (WWXK - WWX(3)) / (WWX(4) - WWX(3))))
+          END IF
+          DDIAG((IK-1)*NTH+1:IK*NTH) = (1. - (1. - WWF) * WWW) * DDIAG((IK-1)*NTH+1:IK*NTH)
+        END DO
+      END IF
       !
       ! Computes Breaking probability
       !
